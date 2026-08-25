@@ -117,6 +117,7 @@ final class Cotlas_Ads_Engine {
 	public function adblock_markup(): void {
 		if (empty($this->settings['adblock_enabled'])) return;
 		$dismissible = !empty($this->settings['adblock_dismissible']);
+		$probe_url = add_query_arg('ver', COTLAS_ADS_VERSION, COTLAS_ADS_URL . 'assets/advertisement.js');
 		?>
 		<div class="adsbox ad-banner advertisement pub_300x250 cotlas-block-test" aria-hidden="true">&nbsp;</div>
 		<div class="cotlas-support-overlay" data-cotlas-support-overlay data-dismissible="<?php echo $dismissible ? '1' : '0'; ?>" hidden>
@@ -133,13 +134,27 @@ final class Cotlas_Ads_Engine {
 			var overlay=document.querySelector('[data-cotlas-support-overlay]');
 			if(!overlay)return;
 			function isHidden(el){if(!el)return true;var style=window.getComputedStyle(el);return style.display==='none'||style.visibility==='hidden'||el.offsetWidth===0||el.offsetHeight===0;}
+			var probeLoaded=false,probeFailed=false;
+			var probe=document.createElement('script');
+			probe.src=<?php echo wp_json_encode($probe_url); ?>;
+			probe.async=true;
+			probe.onload=function(){probeLoaded=true;};
+			probe.onerror=function(){probeFailed=true;};
+			document.head.appendChild(probe);
 			window.setTimeout(function(){
 				var bait=document.querySelector('.cotlas-block-test');
-				var creatives=Array.prototype.slice.call(document.querySelectorAll('.cotlas-ad-image'));
-				var realAdBlocked=creatives.length>0&&creatives.every(function(image){return isHidden(image)||(image.complete&&image.naturalWidth===0);});
+				var units=Array.prototype.slice.call(document.querySelectorAll('.cotlas-ad'));
+				var realAdBlocked=units.length>0&&units.every(function(unit){
+					if(isHidden(unit))return true;
+					if(!unit.classList.contains('cotlas-type-image')&&!unit.classList.contains('cotlas-type-slider'))return false;
+					var images=Array.prototype.slice.call(unit.querySelectorAll('.cotlas-ad-image'));
+					return images.length===0||images.every(function(image){return isHidden(image)||(image.complete&&image.naturalWidth===0);});
+				});
+				var networkProbeBlocked=probeFailed||!probeLoaded||window.cotlasAdvertisementProbe!==<?php echo wp_json_encode(COTLAS_ADS_VERSION); ?>;
 				var dismissed=overlay.dataset.dismissible==='1'&&window.sessionStorage.getItem('cotlas_support_dismissed')==='1';
-				if((isHidden(bait)||realAdBlocked)&&!dismissed){overlay.hidden=false;document.documentElement.classList.add('cotlas-support-locked');var button=overlay.querySelector('button');if(button)button.focus();}
-			},1400);
+				if(realAdBlocked)units.forEach(function(unit){var label=unit.querySelector('.cotlas-ad-label');if(label)label.hidden=true;});
+				if((isHidden(bait)||realAdBlocked||networkProbeBlocked)&&!dismissed){overlay.hidden=false;document.documentElement.classList.add('cotlas-support-locked');var button=overlay.querySelector('button');if(button)button.focus();}
+			},2500);
 			overlay.querySelector('[data-support-reload]').addEventListener('click',function(){window.location.reload();});
 			var dismiss=overlay.querySelector('[data-support-dismiss]');if(dismiss)dismiss.addEventListener('click',function(){window.sessionStorage.setItem('cotlas_support_dismissed','1');overlay.hidden=true;document.documentElement.classList.remove('cotlas-support-locked');});
 		})();
