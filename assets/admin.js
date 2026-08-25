@@ -58,7 +58,22 @@ document.querySelectorAll('[data-multiselect]').forEach((multi) => {
   });
   search.addEventListener('input', () => {
     const query = search.value.trim().toLowerCase();
-    options.forEach((option) => option.hidden = !option.dataset.label.includes(query));
+	const container = multi.querySelector('.cotlas-multiselect-options');
+	options
+	  .sort((a, b) => {
+		const aLabel = a.dataset.label || '';
+		const bLabel = b.dataset.label || '';
+		const aPosition = query ? aLabel.indexOf(query) : 0;
+		const bPosition = query ? bLabel.indexOf(query) : 0;
+		if (aPosition !== bPosition) return aPosition - bPosition;
+		return aLabel.localeCompare(bLabel);
+	  })
+	  .forEach((option) => {
+		const matches = !query || (option.dataset.label || '').includes(query);
+		option.hidden = !matches;
+		option.classList.toggle('is-filtered-out', !matches);
+		container.appendChild(option);
+	  });
   });
   options.forEach((option) => option.querySelector('input').addEventListener('change', updateSummary));
   document.addEventListener('click', (event) => {

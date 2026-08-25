@@ -102,7 +102,7 @@ final class Cotlas_Ads_Repository {
 		$name = sanitize_text_field($data['name'] ?? '');
 		$row = array(
 			'name' => $name,
-			'slug' => sanitize_title($data['slug'] ?? $name),
+			'slug' => sanitize_title(!empty($data['slug']) ? $data['slug'] : $name),
 			'mode' => in_array($data['mode'] ?? '', array('weighted', 'random', 'all'), true) ? $data['mode'] : 'weighted',
 			'ad_ids' => implode(',', array_filter(array_map('absint', (array) ($data['ad_ids'] ?? array())))),
 			'css_class' => sanitize_html_class($data['css_class'] ?? ''),

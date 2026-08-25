@@ -107,28 +107,43 @@ final class Cotlas_Ads_Engine {
 			$body = '<a href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . $body . '</a>';
 		}
 		$pixel = add_query_arg(array('cotlas-ad-view' => (int) $ad['id'], 'zone' => $zone_id), home_url('/'));
-		$style = '';
-		if ((int) $ad['canvas_width'] > 0) $style .= 'width:min(100%,' . absint($ad['canvas_width']) . 'px);';
-		if ((int) $ad['canvas_height'] > 0) $style .= 'height:' . absint($ad['canvas_height']) . 'px;';
+		$outer_style = (int) $ad['canvas_width'] > 0 ? 'width:min(100%,' . absint($ad['canvas_width']) . 'px);' : '';
+		$frame_style = (int) $ad['canvas_height'] > 0 ? 'height:' . absint($ad['canvas_height']) . 'px;' : '';
 		$label = trim((string) $this->settings['ad_label']);
 		$label_html = $label !== '' ? '<div class="cotlas-ad-label">' . esc_html($label) . '</div>' : '';
-		return '<div class="cotlas-ad cotlas-type-' . esc_attr($ad['creative_type']) . '" style="' . esc_attr($style) . '" data-cotlas-ad="' . absint($ad['id']) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>' . $label_html;
+		return '<div class="cotlas-ad cotlas-type-' . esc_attr($ad['creative_type']) . '" style="' . esc_attr($outer_style) . '" data-cotlas-ad="' . absint($ad['id']) . '"><div class="cotlas-ad-frame" style="' . esc_attr($frame_style) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>' . $label_html . '</div>';
 	}
 
 	public function adblock_markup(): void {
 		if (empty($this->settings['adblock_enabled'])) return;
 		$dismissible = !empty($this->settings['adblock_dismissible']);
 		?>
-		<div class="adsbox ad-banner cotlas-adblock-bait" aria-hidden="true">&nbsp;</div>
-		<div class="cotlas-adblock-overlay" data-cotlas-adblock-overlay data-dismissible="<?php echo $dismissible ? '1' : '0'; ?>" hidden>
-			<div class="cotlas-adblock-dialog" role="dialog" aria-modal="true" aria-labelledby="cotlas-adblock-title" aria-describedby="cotlas-adblock-message">
-				<div class="cotlas-adblock-icon" aria-hidden="true">!</div>
-				<h2 id="cotlas-adblock-title"><?php echo esc_html($this->settings['adblock_title']); ?></h2>
-				<p id="cotlas-adblock-message"><?php echo esc_html($this->settings['adblock_message']); ?></p>
-				<button type="button" class="cotlas-adblock-reload" data-adblock-reload>Reload after disabling</button>
-				<?php if ($dismissible): ?><button type="button" class="cotlas-adblock-dismiss" data-adblock-dismiss>Continue without disabling</button><?php endif; ?>
+		<div class="adsbox ad-banner advertisement pub_300x250 cotlas-block-test" aria-hidden="true">&nbsp;</div>
+		<div class="cotlas-support-overlay" data-cotlas-support-overlay data-dismissible="<?php echo $dismissible ? '1' : '0'; ?>" hidden>
+			<div class="cotlas-support-dialog" role="dialog" aria-modal="true" aria-labelledby="cotlas-support-title" aria-describedby="cotlas-support-message">
+				<div class="cotlas-support-icon" aria-hidden="true">!</div>
+				<h2 id="cotlas-support-title"><?php echo esc_html($this->settings['adblock_title']); ?></h2>
+				<p id="cotlas-support-message"><?php echo esc_html($this->settings['adblock_message']); ?></p>
+				<button type="button" class="cotlas-support-reload" data-support-reload>Reload after disabling</button>
+				<?php if ($dismissible): ?><button type="button" class="cotlas-support-dismiss" data-support-dismiss>Continue without disabling</button><?php endif; ?>
 			</div>
 		</div>
+		<script>
+		(function(){
+			var overlay=document.querySelector('[data-cotlas-support-overlay]');
+			if(!overlay)return;
+			function isHidden(el){if(!el)return true;var style=window.getComputedStyle(el);return style.display==='none'||style.visibility==='hidden'||el.offsetWidth===0||el.offsetHeight===0;}
+			window.setTimeout(function(){
+				var bait=document.querySelector('.cotlas-block-test');
+				var creatives=Array.prototype.slice.call(document.querySelectorAll('.cotlas-ad-image'));
+				var realAdBlocked=creatives.length>0&&creatives.every(function(image){return isHidden(image)||(image.complete&&image.naturalWidth===0);});
+				var dismissed=overlay.dataset.dismissible==='1'&&window.sessionStorage.getItem('cotlas_support_dismissed')==='1';
+				if((isHidden(bait)||realAdBlocked)&&!dismissed){overlay.hidden=false;document.documentElement.classList.add('cotlas-support-locked');var button=overlay.querySelector('button');if(button)button.focus();}
+			},1400);
+			overlay.querySelector('[data-support-reload]').addEventListener('click',function(){window.location.reload();});
+			var dismiss=overlay.querySelector('[data-support-dismiss]');if(dismiss)dismiss.addEventListener('click',function(){window.sessionStorage.setItem('cotlas_support_dismissed','1');overlay.hidden=true;document.documentElement.classList.remove('cotlas-support-locked');});
+		})();
+		</script>
 		<?php
 	}
 
