@@ -15,6 +15,26 @@ if (creativeType) {
   refreshCreativePanels();
 }
 
+const videoSource = document.querySelector('[data-video-source]');
+const refreshVideoPanels = () => {
+	if (!videoSource) return;
+	document.querySelectorAll('[data-video-source-panel]').forEach((panel) => {
+		panel.hidden = panel.dataset.videoSourcePanel !== videoSource.value;
+	});
+};
+if (videoSource) {
+	videoSource.addEventListener('change', refreshVideoPanels);
+	refreshVideoPanels();
+}
+
+const videoLimitInput = document.querySelector('[name="video_max_mb"]');
+if (videoLimitInput && window.cotlasAdsAdmin) {
+	videoLimitInput.max = '50';
+	videoLimitInput.value = String(Math.round(window.cotlasAdsAdmin.videoMaxBytes / 1048576));
+	const note = videoLimitInput.parentElement?.querySelector('small');
+	if (note) note.textContent = 'Default: 20 MB. Hard maximum: 50 MB. Your server may enforce a smaller request limit.';
+}
+
 document.querySelector('[data-media-single]')?.addEventListener('click', () => {
   const frame = wp.media({ title: 'Select campaign image', button: { text: 'Use this image' }, multiple: false, library: { type: 'image' } });
   frame.on('select', () => {
@@ -69,6 +89,32 @@ document.querySelector('[data-media-video]')?.addEventListener('click', () => {
 		if (window.wp?.Uploader?.defaults?.multipart_params) delete window.wp.Uploader.defaults.multipart_params.cotlas_ads_video_upload;
 	});
 	frame.open();
+});
+
+document.querySelector('[data-upload-video]')?.addEventListener('click', async (event) => {
+	const button = event.currentTarget;
+	const file = document.querySelector('[data-video-file]')?.files?.[0];
+	if (!file) return window.alert('Select an MP4 file first.');
+	if (!/\.mp4$/i.test(file.name)) return window.alert('Cotlas Ads accepts MP4 files only.');
+	if (file.size > Number(window.cotlasAdsAdmin.videoMaxBytes)) return window.alert(`This video exceeds the configured ${Math.round(window.cotlasAdsAdmin.videoMaxBytes / 1048576)} MB limit.`);
+	const body = new FormData();
+	body.append('action', 'cotlas_ads_upload_video');
+	body.append('nonce', window.cotlasAdsAdmin.videoUploadNonce);
+	body.append('video', file);
+	button.disabled = true;
+	button.textContent = 'Uploading…';
+	try {
+		const response = await fetch(window.cotlasAdsAdmin.ajaxUrl, { method: 'POST', body, credentials: 'same-origin' });
+		const result = await response.json();
+		if (!result.success) throw new Error(result.data?.message || 'Upload failed.');
+		document.querySelector('[data-video-id]').value = result.data.id;
+		document.querySelector('[data-video-preview]').innerHTML = `<video style="display:block;max-width:100%;height:auto" src="${result.data.url}" controls muted playsinline></video>`;
+	} catch (error) {
+		window.alert(error.message || 'Video upload failed.');
+	} finally {
+		button.disabled = false;
+		button.textContent = 'Upload selected MP4';
+	}
 });
 
 document.querySelectorAll('[data-multiselect]').forEach((multi) => {

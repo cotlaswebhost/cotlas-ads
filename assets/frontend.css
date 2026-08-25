@@ -3,6 +3,7 @@
 .cotlas-ad-frame{position:relative;width:100%;overflow:hidden}
 .cotlas-ad-frame>a{display:block;width:100%;height:100%}
 .cotlas-ad-image,.cotlas-ad-video{display:block;width:100%;height:100%;max-width:100%;object-fit:contain;object-position:center}
+.cotlas-ad-frame iframe{display:block;width:100%;height:100%;border:0}
 .cotlas-ad-label{display:block;width:100%;box-sizing:border-box;margin:5px 0 0;color:#737373;font:500 11px/1.3 system-ui,sans-serif;letter-spacing:.08em;text-align:center!important;text-transform:uppercase}
 .cotlas-pixel{position:absolute!important;width:1px!important;height:1px!important;opacity:0;pointer-events:none}
 .cotlas-slider{position:relative;width:100%;height:100%;overflow:hidden}

@@ -102,11 +102,21 @@ final class Cotlas_Ads_Engine {
 				$slides .= '<div class="cotlas-slide' . ($index === 0 ? ' is-active' : '') . '">' . $image . '</div>';
 			}
 			if ($slides !== '') $body = '<div class="cotlas-slider" data-cotlas-slider data-interval="' . absint($ad['slider_interval']) . '">' . $slides . '</div>';
-		} elseif ($ad['creative_type'] === 'video' && !empty($ad['video_id'])) {
-			$video_url = wp_get_attachment_url((int) $ad['video_id']);
-			if ($video_url) $body = '<video class="cotlas-ad-video" autoplay muted loop playsinline preload="metadata" aria-label="' . esc_attr($ad['name']) . '"><source src="' . esc_url($video_url) . '" type="video/mp4"></video>';
+		} elseif ($ad['creative_type'] === 'video') {
+			$source = $ad['video_source'] ?? 'upload';
+			if ($source === 'embed' && !empty($ad['video_embed'])) {
+				$body = (string) $ad['video_embed'];
+			} else {
+				$video_url = $source === 'url' ? esc_url_raw($ad['video_url'] ?? '') : wp_get_attachment_url((int) ($ad['video_id'] ?? 0));
+				if ($source === 'url' && $video_url && !preg_match('/\.mp4(?:$|\?)/i', $video_url)) {
+					$embed = wp_oembed_get($video_url, array('width' => max(300, absint($ad['canvas_width']))));
+					if ($embed) $body = $embed;
+				} elseif ($video_url) {
+					$body = '<video class="cotlas-ad-video" autoplay muted loop playsinline preload="metadata" aria-label="' . esc_attr($ad['name']) . '"><source src="' . esc_url($video_url) . '" type="video/mp4"></video>';
+				}
+			}
 		}
-		if ($click_url && $ad['creative_type'] !== 'slider') {
+		if ($click_url && !in_array($ad['creative_type'], array('slider', 'video'), true)) {
 			$body = '<a href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . $body . '</a>';
 		}
 		$pixel = add_query_arg(array('cotlas-ad-view' => (int) $ad['id'], 'zone' => $zone_id), home_url('/'));

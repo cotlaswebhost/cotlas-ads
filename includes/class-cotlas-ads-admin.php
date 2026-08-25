@@ -17,6 +17,7 @@ final class Cotlas_Ads_Admin {
 		add_action('admin_post_cotlas_import', array($this, 'import'));
 		add_filter('upload_mimes', array($this, 'allow_scoped_video_mime'), 999);
 		add_filter('wp_handle_upload_prefilter', array($this, 'validate_scoped_video_upload'), 999);
+		add_action('wp_ajax_cotlas_ads_upload_video', array($this, 'ajax_upload_video'));
 	}
 
 	public function menu(): void {
@@ -29,7 +30,7 @@ final class Cotlas_Ads_Admin {
 		wp_enqueue_script('cotlas-ads-admin', COTLAS_ADS_URL . 'assets/admin.js', array(), COTLAS_ADS_VERSION, true);
 		wp_enqueue_media();
 		$settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('video_upload_enabled' => 0, 'video_max_mb' => 20));
-		wp_localize_script('cotlas-ads-admin', 'cotlasAdsAdmin', array('videoEnabled' => !empty($settings['video_upload_enabled']), 'videoMaxBytes' => min(20, max(1, absint($settings['video_max_mb']))) * MB_IN_BYTES, 'videoUploadNonce' => wp_create_nonce('cotlas_ads_video_upload')));
+		wp_localize_script('cotlas-ads-admin', 'cotlasAdsAdmin', array('videoEnabled' => !empty($settings['video_upload_enabled']), 'videoMaxBytes' => min(50, max(1, absint($settings['video_max_mb']))) * MB_IN_BYTES, 'videoUploadNonce' => wp_create_nonce('cotlas_ads_video_upload'), 'ajaxUrl' => admin_url('admin-ajax.php')));
 	}
 
 	public function page(): void {
@@ -105,7 +106,7 @@ final class Cotlas_Ads_Admin {
 	}
 
 	private function ad_form(?array $ad): void {
-		$ad = wp_parse_args($ad ?: array(), array('id' => 0, 'name' => '', 'status' => 'draft', 'creative_type' => 'html', 'content' => '', 'image_id' => 0, 'video_id' => 0, 'slider_image_ids' => '', 'target_url' => '', 'canvas_width' => 0, 'canvas_height' => 0, 'slider_interval' => 5, 'weight' => 10, 'start_at' => '', 'end_at' => '', 'days' => '', 'hours' => '', 'device' => 'all', 'countries' => '', 'include_logged_in' => 1, 'max_impressions' => 0, 'max_clicks' => 0));
+		$ad = wp_parse_args($ad ?: array(), array('id' => 0, 'name' => '', 'status' => 'draft', 'creative_type' => 'html', 'content' => '', 'image_id' => 0, 'video_id' => 0, 'video_source' => 'upload', 'video_url' => '', 'video_embed' => '', 'slider_image_ids' => '', 'target_url' => '', 'canvas_width' => 0, 'canvas_height' => 0, 'slider_interval' => 5, 'weight' => 10, 'start_at' => '', 'end_at' => '', 'days' => '', 'hours' => '', 'device' => 'all', 'countries' => '', 'include_logged_in' => 1, 'max_impressions' => 0, 'max_clicks' => 0));
 		$zone_ids = $ad['id'] ? $this->repository->zone_ids_for_ad((int) $ad['id']) : array();
 		$image_url = $ad['image_id'] ? wp_get_attachment_image_url((int) $ad['image_id'], 'medium') : '';
 		$slider_ids = array_filter(array_map('absint', explode(',', (string) $ad['slider_image_ids'])));
@@ -123,7 +124,7 @@ final class Cotlas_Ads_Admin {
 				<div data-creative-panel="html"><label>Creative HTML<textarea name="content" rows="10" placeholder="Paste an ad-network tag or accessible HTML creative"><?php echo esc_textarea($ad['content']); ?></textarea><small>Used for HTML campaigns and as a fallback if an image is unavailable.</small></label></div>
 				<div data-creative-panel="image"><label>Campaign image<input type="hidden" name="image_id" value="<?php echo absint($ad['image_id']); ?>" data-media-id><span class="media-button-row"><button type="button" class="button" data-media-single>Select image</button></span><small>Select an image from the WordPress Media Library. Its preview appears below at full size when space permits.</small><div class="media-preview" data-media-preview><?php if ($image_url): ?><img src="<?php echo esc_url($image_url); ?>" alt=""><?php endif; ?></div></label></div>
 				<div data-creative-panel="slider"><label>Carousel images<input type="hidden" name="slider_image_ids" value="<?php echo esc_attr(implode(',', $slider_ids)); ?>" data-slider-ids><span class="media-button-row"><button type="button" class="button" data-media-slider>Select multiple images</button></span><small class="field-warning">Upload images with exactly the same dimensions. For example, use four 728×90 images for a desktop campaign or four 300×250 images for a mobile campaign.</small><div class="media-preview slider-preview" data-slider-preview><?php foreach ($slider_ids as $slider_id): echo wp_get_attachment_image($slider_id, 'thumbnail'); endforeach; ?></div></label><label>Carousel interval (seconds)<input type="number" min="2" max="60" name="slider_interval" value="<?php echo absint($ad['slider_interval']); ?>"><small>How long each image remains visible before sliding to the next image.</small></label></div>
-				<div data-creative-panel="video"><label>Campaign video<input type="hidden" name="video_id" value="<?php echo absint($ad['video_id']); ?>" data-video-id><span class="media-button-row"><button type="button" class="button" data-media-video <?php disabled(empty($video_settings['video_upload_enabled'])); ?>>Select or upload MP4</button></span><small><?php echo empty($video_settings['video_upload_enabled']) ? 'Video creatives are disabled in Cotlas Ads settings.' : 'MP4 only. Maximum upload size: ' . absint(min(20, $video_settings['video_max_mb'])) . ' MB. Videos autoplay muted, loop, and play inline.'; ?></small><div class="media-preview" data-video-preview><?php if ($video_url): ?><video style="display:block;max-width:100%;height:auto" src="<?php echo esc_url($video_url); ?>" controls muted playsinline></video><?php endif; ?></div></label></div>
+				<div data-creative-panel="video"><label>Video source<select name="video_source" data-video-source><option value="upload" <?php selected($ad['video_source'], 'upload'); ?>>Upload or Media Library MP4</option><option value="url" <?php selected($ad['video_source'], 'url'); ?>>Video, YouTube, or Vimeo URL</option><option value="embed" <?php selected($ad['video_source'], 'embed'); ?>>Embed code</option></select><small>Select how this video advertisement is supplied.</small></label><div data-video-source-panel="upload"><input type="hidden" name="video_id" value="<?php echo absint($ad['video_id']); ?>" data-video-id><label>Upload MP4<input type="file" accept="video/mp4,.mp4" data-video-file <?php disabled(empty($video_settings['video_upload_enabled'])); ?>><span class="media-button-row"><button type="button" class="button" data-upload-video <?php disabled(empty($video_settings['video_upload_enabled'])); ?>>Upload selected MP4</button> <button type="button" class="button" data-media-video>Select existing MP4</button></span><small><?php echo empty($video_settings['video_upload_enabled']) ? 'Video uploads are disabled in Cotlas Ads settings.' : 'Campaign-only upload. Maximum size: ' . absint(min(50, $video_settings['video_max_mb'])) . ' MB.'; ?></small><div class="media-preview" data-video-preview><?php if ($video_url): ?><video style="display:block;max-width:100%;height:auto" src="<?php echo esc_url($video_url); ?>" controls muted playsinline></video><?php endif; ?></div></div><div data-video-source-panel="url"><label>Video URL<input type="url" name="video_url" value="<?php echo esc_attr($ad['video_url']); ?>" placeholder="https://example.com/video.mp4 or YouTube/Vimeo URL"><small>Direct MP4 files play natively. Supported YouTube and Vimeo URLs use WordPress oEmbed.</small></label></div><div data-video-source-panel="embed"><label>Video embed code<textarea name="video_embed" rows="7" placeholder="Paste trusted iframe or player embed code"><?php echo esc_textarea($ad['video_embed']); ?></textarea><small>Trusted administrators only. Scripts and iframes execute on the public site.</small></label></div></div>
 				<div class="field-row"><label>Canvas width (px)<input type="number" min="0" max="4096" name="canvas_width" value="<?php echo absint($ad['canvas_width']); ?>" placeholder="728"><small>Maximum display width. Use 0 for the image’s natural responsive width.</small></label><label>Canvas height (px)<input type="number" min="0" max="4096" name="canvas_height" value="<?php echo absint($ad['canvas_height']); ?>" placeholder="90"><small>The image is contained within this canvas without cropping, stretching, or using cover.</small></label></div>
 			</div>
 			<aside class="cotlas-card editor-side"><h2>Delivery</h2><label>Status<select name="status"><option value="active" <?php selected($ad['status'], 'active'); ?>>Active</option><option value="paused" <?php selected($ad['status'], 'paused'); ?>>Paused</option><option value="draft" <?php selected($ad['status'], 'draft'); ?>>Draft</option></select><small>Active campaigns still obey dates, caps, device, country, weekday, and hour rules. Expired and Scheduled are calculated automatically.</small></label>
@@ -170,7 +171,9 @@ final class Cotlas_Ads_Admin {
 	public function save_ad(): void {
 		$this->guard('cotlas_ads_manage', 'cotlas_save_ad');
 		$data = wp_unslash($_POST);
-		if (($data['creative_type'] ?? '') === 'video') $this->validate_video_attachment(absint($data['video_id'] ?? 0));
+		if (($data['creative_type'] ?? '') === 'video' && ($data['video_source'] ?? 'upload') === 'upload') $this->validate_video_attachment(absint($data['video_id'] ?? 0));
+		if (($data['creative_type'] ?? '') === 'video' && ($data['video_source'] ?? '') === 'url' && empty($data['video_url'])) wp_die('Enter a video, YouTube, or Vimeo URL.');
+		if (($data['creative_type'] ?? '') === 'video' && ($data['video_source'] ?? '') === 'embed' && empty($data['video_embed'])) wp_die('Paste the video embed code.');
 		$id = $this->repository->save_ad($data);
 		$this->repository->assign_ad_to_zones($id, (array) ($_POST['zone_ids'] ?? array()));
 		$this->redirect('ads');
@@ -182,6 +185,7 @@ final class Cotlas_Ads_Admin {
 		$this->guard('cotlas_ads_settings', 'cotlas_save_settings');
 		$post_types = array_filter(array_map('sanitize_key', explode(',', wp_unslash($_POST['injection_post_types'] ?? 'post'))));
 		$settings = array('track_impressions' => empty($_POST['track_impressions']) ? 0 : 1, 'track_clicks' => empty($_POST['track_clicks']) ? 0 : 1, 'bot_filter' => empty($_POST['bot_filter']) ? 0 : 1, 'retention_days' => min(3650, max(1, absint($_POST['retention_days'] ?? 365))), 'ad_label' => sanitize_text_field(wp_unslash($_POST['ad_label'] ?? 'Advertisement')), 'video_upload_enabled' => empty($_POST['video_upload_enabled']) ? 0 : 1, 'video_max_mb' => min(20, max(1, absint($_POST['video_max_mb'] ?? 20))), 'adblock_enabled' => empty($_POST['adblock_enabled']) ? 0 : 1, 'adblock_dismissible' => empty($_POST['adblock_dismissible']) ? 0 : 1, 'adblock_title' => sanitize_text_field(wp_unslash($_POST['adblock_title'] ?? 'Please disable your ad blocker')), 'adblock_message' => sanitize_textarea_field(wp_unslash($_POST['adblock_message'] ?? '')), 'ads_txt' => sanitize_textarea_field(wp_unslash($_POST['ads_txt'] ?? '')), 'header_code' => current_user_can('unfiltered_html') ? wp_unslash($_POST['header_code'] ?? '') : wp_kses_post(wp_unslash($_POST['header_code'] ?? '')), 'injections' => array());
+		$settings['video_max_mb'] = min(50, max(1, absint($_POST['video_max_mb'] ?? 20)));
 		if (!empty($_POST['injection_zone'])) $settings['injections'][] = array('zone' => sanitize_title(wp_unslash($_POST['injection_zone'])), 'position' => in_array($_POST['injection_position'] ?? '', array('before', 'after', 'paragraph'), true) ? $_POST['injection_position'] : 'after', 'paragraph' => absint($_POST['injection_paragraph'] ?? 2), 'post_types' => $post_types ?: array('post'));
 		update_option('cotlas_ads_settings', $settings, false); $this->redirect('settings');
 	}
@@ -195,7 +199,7 @@ final class Cotlas_Ads_Admin {
 		if (!$this->is_scoped_video_upload()) return $file;
 		$settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('video_upload_enabled' => 0, 'video_max_mb' => 20));
 		if (empty($settings['video_upload_enabled'])) $file['error'] = 'Video uploads are disabled in Cotlas Ads settings.';
-		$limit = min(20, max(1, absint($settings['video_max_mb']))) * MB_IN_BYTES;
+		$limit = min(50, max(1, absint($settings['video_max_mb']))) * MB_IN_BYTES;
 		if (empty($file['error']) && (int) ($file['size'] ?? 0) > $limit) $file['error'] = sprintf('Video exceeds the Cotlas Ads limit of %d MB.', (int) ($limit / MB_IN_BYTES));
 		if (empty($file['error']) && strtolower(pathinfo((string) ($file['name'] ?? ''), PATHINFO_EXTENSION)) !== 'mp4') $file['error'] = 'Cotlas Ads accepts MP4 video files only.';
 		return $file;
@@ -210,8 +214,27 @@ final class Cotlas_Ads_Admin {
 		if (!$attachment_id || get_post_mime_type($attachment_id) !== 'video/mp4') wp_die('Select a valid MP4 video for this campaign.');
 		$path = get_attached_file($attachment_id);
 		$settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('video_max_mb' => 20));
-		$limit = min(20, max(1, absint($settings['video_max_mb']))) * MB_IN_BYTES;
+		$limit = min(50, max(1, absint($settings['video_max_mb']))) * MB_IN_BYTES;
 		if (!$path || !is_file($path) || filesize($path) > $limit) wp_die(sprintf('The campaign video must be no larger than %d MB.', (int) ($limit / MB_IN_BYTES)));
+	}
+
+	public function ajax_upload_video(): void {
+		check_ajax_referer('cotlas_ads_video_upload', 'nonce');
+		if (!current_user_can('cotlas_ads_manage')) wp_send_json_error(array('message' => 'Permission denied.'), 403);
+		$settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('video_upload_enabled' => 0, 'video_max_mb' => 20));
+		if (empty($settings['video_upload_enabled'])) wp_send_json_error(array('message' => 'Video uploads are disabled in Cotlas Ads settings.'), 403);
+		if (empty($_FILES['video']) || !is_uploaded_file($_FILES['video']['tmp_name'])) wp_send_json_error(array('message' => 'Select an MP4 file.'), 400);
+		$file = $_FILES['video'];
+		$limit = min(50, max(1, absint($settings['video_max_mb']))) * MB_IN_BYTES;
+		if ((int) $file['size'] > $limit) wp_send_json_error(array('message' => sprintf('Video exceeds the %d MB campaign limit.', (int) ($limit / MB_IN_BYTES))), 400);
+		if (strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION)) !== 'mp4') wp_send_json_error(array('message' => 'Cotlas Ads accepts MP4 files only.'), 400);
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		$upload = wp_handle_sideload($file, array('test_form' => false, 'mimes' => array('mp4' => 'video/mp4')));
+		if (!empty($upload['error'])) wp_send_json_error(array('message' => $upload['error']), 400);
+		$attachment_id = wp_insert_attachment(array('post_mime_type' => 'video/mp4', 'post_title' => sanitize_text_field(pathinfo($file['name'], PATHINFO_FILENAME)), 'post_status' => 'inherit'), $upload['file']);
+		if (is_wp_error($attachment_id)) { wp_delete_file($upload['file']); wp_send_json_error(array('message' => $attachment_id->get_error_message()), 500); }
+		update_attached_file($attachment_id, $upload['file']);
+		wp_send_json_success(array('id' => $attachment_id, 'url' => $upload['url']));
 	}
 
 	public function export(): void {
