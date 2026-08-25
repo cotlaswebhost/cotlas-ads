@@ -32,6 +32,7 @@ final class Cotlas_Ads_Install {
 			creative_type varchar(20) NOT NULL DEFAULT 'html',
 			content longtext NOT NULL,
 			image_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			video_id bigint(20) unsigned NOT NULL DEFAULT 0,
 			slider_image_ids text NULL,
 			target_url text NULL,
 			canvas_width smallint unsigned NOT NULL DEFAULT 0,
@@ -94,6 +95,8 @@ final class Cotlas_Ads_Install {
 			'adblock_dismissible' => 1,
 			'adblock_title' => 'Please disable your ad blocker',
 			'adblock_message' => 'Advertising supports our newsroom. Please disable your ad blocker and reload this page to continue.',
+			'video_upload_enabled' => 0,
+			'video_max_mb' => 20,
 		));
 	}
 

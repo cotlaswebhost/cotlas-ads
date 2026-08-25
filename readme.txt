@@ -3,7 +3,7 @@ Contributors: cotlas
 Tags: advertising, ad manager, banner, newsroom
 Requires at least: 6.2
 Requires PHP: 8.0
-Stable tag: 0.3.6
+Stable tag: 0.3.7
 License: GPLv2 or later
 
 A lightweight, private advertising manager built for in-house news portals.
@@ -12,7 +12,8 @@ A lightweight, private advertising manager built for in-house news portals.
 
 * Unlimited campaigns and placements.
 * Image, HTML, affiliate, and ad-network creatives.
-* Responsive same-size image sliders with desktop/mobile targeting.
+* Automatic right-to-left same-size image carousels with desktop/mobile targeting.
+* Scoped MP4 video ad uploads with a configurable limit up to 20 MB.
 * Non-cropping configurable campaign canvases.
 * Configurable advertisement labels below creatives.
 * Optional dismissible or blocking ad-blocker request popup.

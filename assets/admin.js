@@ -26,7 +26,7 @@ document.querySelector('[data-media-single]')?.addEventListener('click', () => {
 });
 
 document.querySelector('[data-media-slider]')?.addEventListener('click', () => {
-  const frame = wp.media({ title: 'Select slider images of the same size', button: { text: 'Use these images' }, multiple: true, library: { type: 'image' } });
+	const frame = wp.media({ title: 'Select carousel images of the same size', button: { text: 'Use these images' }, multiple: true, library: { type: 'image' } });
   frame.on('select', () => {
     const images = frame.state().get('selection').toJSON();
 	const dimensions = [...new Set(images.map((image) => `${image.width}x${image.height}`))];
@@ -38,6 +38,37 @@ document.querySelector('[data-media-slider]')?.addEventListener('click', () => {
     document.querySelector('[data-slider-preview]').innerHTML = images.map((image) => `<img src="${image.sizes?.thumbnail?.url || image.url}" alt="">`).join('');
   });
   frame.open();
+});
+
+document.querySelector('[data-media-video]')?.addEventListener('click', () => {
+	if (!window.cotlasAdsAdmin?.videoEnabled) return;
+	if (window.wp?.Uploader?.defaults?.multipart_params) {
+		window.wp.Uploader.defaults.multipart_params.cotlas_ads_video_upload = window.cotlasAdsAdmin.videoUploadNonce;
+	}
+	const frame = wp.media({
+		title: 'Select or upload an MP4 video ad',
+		button: { text: 'Use this video' },
+		multiple: false,
+		library: { type: 'video/mp4' },
+		uploader: { params: { cotlas_ads_video_upload: window.cotlasAdsAdmin.videoUploadNonce } },
+	});
+	frame.on('select', () => {
+		const video = frame.state().get('selection').first().toJSON();
+		if (video.mime !== 'video/mp4') {
+			window.alert('Cotlas Ads accepts MP4 video files only.');
+			return;
+		}
+		if (Number(video.filesizeInBytes || 0) > Number(window.cotlasAdsAdmin.videoMaxBytes)) {
+			window.alert(`This video exceeds the configured ${Math.round(window.cotlasAdsAdmin.videoMaxBytes / 1048576)} MB limit.`);
+			return;
+		}
+		document.querySelector('[data-video-id]').value = video.id;
+		document.querySelector('[data-video-preview]').innerHTML = `<video style="display:block;max-width:100%;height:auto" src="${video.url}" controls muted playsinline></video>`;
+	});
+	frame.on('close', () => {
+		if (window.wp?.Uploader?.defaults?.multipart_params) delete window.wp.Uploader.defaults.multipart_params.cotlas_ads_video_upload;
+	});
+	frame.open();
 });
 
 document.querySelectorAll('[data-multiselect]').forEach((multi) => {

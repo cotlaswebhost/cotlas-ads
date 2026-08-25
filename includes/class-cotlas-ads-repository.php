@@ -29,9 +29,10 @@ final class Cotlas_Ads_Repository {
 		$row = array(
 			'name' => sanitize_text_field($data['name'] ?? ''),
 			'status' => in_array($data['status'] ?? '', array('active', 'paused', 'draft'), true) ? $data['status'] : 'draft',
-			'creative_type' => in_array($data['creative_type'] ?? '', array('html', 'image', 'slider'), true) ? $data['creative_type'] : 'html',
+			'creative_type' => in_array($data['creative_type'] ?? '', array('html', 'image', 'slider', 'video'), true) ? $data['creative_type'] : 'html',
 			'content' => current_user_can('unfiltered_html') ? (string) ($data['content'] ?? '') : wp_kses_post($data['content'] ?? ''),
 			'image_id' => absint($data['image_id'] ?? 0),
+			'video_id' => absint($data['video_id'] ?? 0),
 			'slider_image_ids' => implode(',', array_filter(array_map('absint', explode(',', (string) ($data['slider_image_ids'] ?? ''))))),
 			'target_url' => esc_url_raw($data['target_url'] ?? ''),
 			'canvas_width' => min(4096, absint($data['canvas_width'] ?? 0)),

@@ -7,7 +7,7 @@ final class Cotlas_Ads_Engine {
 
 	public function __construct(Cotlas_Ads_Repository $repository) {
 		$this->repository = $repository;
-		$this->settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('header_code' => '', 'injections' => array(), 'ad_label' => 'Advertisement', 'adblock_enabled' => 0, 'adblock_dismissible' => 1, 'adblock_title' => 'Please disable your ad blocker', 'adblock_message' => 'Advertising supports our newsroom. Please disable your ad blocker and reload this page to continue.'));
+		$this->settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('header_code' => '', 'injections' => array(), 'ad_label' => 'Advertisement', 'adblock_enabled' => 0, 'adblock_dismissible' => 1, 'adblock_title' => 'Please disable your ad blocker', 'adblock_message' => 'Advertising supports our newsroom. Please disable your ad blocker and reload this page to continue.', 'video_upload_enabled' => 0, 'video_max_mb' => 20));
 		add_shortcode('cotlas_ad', array($this, 'shortcode'));
 		add_action('wp_head', array($this, 'header_code'), 99);
 		add_filter('the_content', array($this, 'inject_content'), 20);
@@ -101,7 +101,10 @@ final class Cotlas_Ads_Engine {
 				if ($click_url) $image = '<a href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . $image . '</a>';
 				$slides .= '<div class="cotlas-slide' . ($index === 0 ? ' is-active' : '') . '">' . $image . '</div>';
 			}
-			if ($slides !== '') $body = '<div class="cotlas-slider" data-cotlas-slider data-interval="' . absint($ad['slider_interval']) . '">' . $slides . '<button type="button" class="cotlas-slider-prev" aria-label="Previous advertisement">‹</button><button type="button" class="cotlas-slider-next" aria-label="Next advertisement">›</button></div>';
+			if ($slides !== '') $body = '<div class="cotlas-slider" data-cotlas-slider data-interval="' . absint($ad['slider_interval']) . '">' . $slides . '</div>';
+		} elseif ($ad['creative_type'] === 'video' && !empty($ad['video_id'])) {
+			$video_url = wp_get_attachment_url((int) $ad['video_id']);
+			if ($video_url) $body = '<video class="cotlas-ad-video" autoplay muted loop playsinline preload="metadata" aria-label="' . esc_attr($ad['name']) . '"><source src="' . esc_url($video_url) . '" type="video/mp4"></video>';
 		}
 		if ($click_url && $ad['creative_type'] !== 'slider') {
 			$body = '<a href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . $body . '</a>';

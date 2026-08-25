@@ -2,11 +2,12 @@
 
 Cotlas Ads is an original implementation. It does not load or modify either AdRotate package.
 
-## Included in 0.3.6
+## Included in 0.3.7
 
 - Campaign and placement management
 - HTML/ad-tag and Media Library image creatives
-- Same-dimension image slider creatives with adjustable intervals
+- Same-dimension, automatic right-to-left image carousel creatives with adjustable intervals
+- MP4 video creatives with campaign-only upload permission and a configurable 20 MB hard maximum
 - Configurable responsive canvas dimensions using non-cropping `object-fit: contain`
 - Campaign-to-placement assignment from either editor
 - Scheduled and automatically expired runtime statuses
@@ -35,7 +36,7 @@ Cotlas Ads is an original implementation. It does not load or modify either AdRo
 
 ## Planned compatibility work
 
-These are not represented as complete in 0.3.6 and should be developed against explicit newsroom requirements rather than copied from a third-party implementation:
+These are not represented as complete in 0.3.7 and should be developed against explicit newsroom requirements rather than copied from a third-party implementation:
 
 - A migration wizard for AdRotate free database records
 - Dedicated advertiser self-service campaign editing and email notifications
