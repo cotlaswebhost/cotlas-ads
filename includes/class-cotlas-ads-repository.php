@@ -1,0 +1,132 @@
+<?php
+defined('ABSPATH') || exit;
+
+final class Cotlas_Ads_Repository {
+	private wpdb $db;
+	private string $ads;
+	private string $zones;
+	private string $events;
+
+	public function __construct() {
+		global $wpdb;
+		$this->db = $wpdb;
+		$this->ads = $wpdb->prefix . 'cotlas_ads';
+		$this->zones = $wpdb->prefix . 'cotlas_ad_zones';
+		$this->events = $wpdb->prefix . 'cotlas_ad_events';
+	}
+
+	public function ads(): array {
+		return $this->db->get_results("SELECT * FROM {$this->ads} ORDER BY updated_at DESC", ARRAY_A) ?: array();
+	}
+
+	public function ad(int $id): ?array {
+		$row = $this->db->get_row($this->db->prepare("SELECT * FROM {$this->ads} WHERE id=%d", $id), ARRAY_A);
+		return $row ?: null;
+	}
+
+	public function save_ad(array $data): int {
+		$now = current_time('mysql');
+		$row = array(
+			'name' => sanitize_text_field($data['name'] ?? ''),
+			'status' => in_array($data['status'] ?? '', array('active', 'paused', 'draft'), true) ? $data['status'] : 'draft',
+			'creative_type' => in_array($data['creative_type'] ?? '', array('html', 'image'), true) ? $data['creative_type'] : 'html',
+			'content' => current_user_can('unfiltered_html') ? (string) ($data['content'] ?? '') : wp_kses_post($data['content'] ?? ''),
+			'image_id' => absint($data['image_id'] ?? 0),
+			'target_url' => esc_url_raw($data['target_url'] ?? ''),
+			'weight' => min(100, max(1, absint($data['weight'] ?? 10))),
+			'start_at' => self::date_or_null($data['start_at'] ?? ''),
+			'end_at' => self::date_or_null($data['end_at'] ?? ''),
+			'days' => sanitize_text_field($data['days'] ?? ''),
+			'hours' => sanitize_text_field($data['hours'] ?? ''),
+			'device' => in_array($data['device'] ?? '', array('all', 'desktop', 'mobile', 'tablet'), true) ? $data['device'] : 'all',
+			'countries' => strtoupper(sanitize_text_field($data['countries'] ?? '')),
+			'include_logged_in' => empty($data['include_logged_in']) ? 0 : 1,
+			'max_impressions' => absint($data['max_impressions'] ?? 0),
+			'max_clicks' => absint($data['max_clicks'] ?? 0),
+			'updated_at' => $now,
+		);
+		$id = absint($data['id'] ?? 0);
+		if ($id) {
+			$this->db->update($this->ads, $row, array('id' => $id));
+			return $id;
+		}
+		$row['created_at'] = $now;
+		$this->db->insert($this->ads, $row);
+		return (int) $this->db->insert_id;
+	}
+
+	public function delete_ad(int $id): void {
+		$this->db->delete($this->ads, array('id' => $id));
+		$this->db->query($this->db->prepare("DELETE FROM {$this->events} WHERE ad_id=%d", $id));
+	}
+
+	public function zones(): array {
+		return $this->db->get_results("SELECT * FROM {$this->zones} ORDER BY name", ARRAY_A) ?: array();
+	}
+
+	public function zone($id_or_slug): ?array {
+		if (is_numeric($id_or_slug)) {
+			$row = $this->db->get_row($this->db->prepare("SELECT * FROM {$this->zones} WHERE id=%d", absint($id_or_slug)), ARRAY_A);
+		} else {
+			$row = $this->db->get_row($this->db->prepare("SELECT * FROM {$this->zones} WHERE slug=%s", sanitize_title($id_or_slug)), ARRAY_A);
+		}
+		return $row ?: null;
+	}
+
+	public function save_zone(array $data): int {
+		$now = current_time('mysql');
+		$name = sanitize_text_field($data['name'] ?? '');
+		$row = array(
+			'name' => $name,
+			'slug' => sanitize_title($data['slug'] ?? $name),
+			'mode' => in_array($data['mode'] ?? '', array('weighted', 'random', 'all'), true) ? $data['mode'] : 'weighted',
+			'ad_ids' => implode(',', array_filter(array_map('absint', (array) ($data['ad_ids'] ?? array())))),
+			'css_class' => sanitize_html_class($data['css_class'] ?? ''),
+			'fallback' => wp_kses_post($data['fallback'] ?? ''),
+			'updated_at' => $now,
+		);
+		$id = absint($data['id'] ?? 0);
+		if ($id) {
+			$this->db->update($this->zones, $row, array('id' => $id));
+			return $id;
+		}
+		$row['created_at'] = $now;
+		$this->db->insert($this->zones, $row);
+		return (int) $this->db->insert_id;
+	}
+
+	public function delete_zone(int $id): void {
+		$this->db->delete($this->zones, array('id' => $id));
+	}
+
+	public function totals(int $ad_id = 0, int $days = 30): array {
+		$where = $this->db->prepare('event_date >= %s', gmdate('Y-m-d', time() - DAY_IN_SECONDS * $days));
+		if ($ad_id) $where .= $this->db->prepare(' AND ad_id=%d', $ad_id);
+		$rows = $this->db->get_results("SELECT event_date,event_type,SUM(count) count FROM {$this->events} WHERE {$where} GROUP BY event_date,event_type ORDER BY event_date", ARRAY_A) ?: array();
+		$result = array('impression' => 0, 'click' => 0, 'series' => $rows);
+		foreach ($rows as $row) $result[$row['event_type']] += (int) $row['count'];
+		return $result;
+	}
+
+	public function increment(int $ad_id, int $zone_id, string $type): void {
+		if (!in_array($type, array('impression', 'click'), true)) return;
+		$date = current_time('Y-m-d');
+		$hour = (int) current_time('G');
+		$sql = $this->db->prepare(
+			"INSERT INTO {$this->events} (ad_id,zone_id,event_type,event_date,event_hour,count) VALUES (%d,%d,%s,%s,%d,1) ON DUPLICATE KEY UPDATE count=count+1",
+			$ad_id, $zone_id, $type, $date, $hour
+		);
+		$this->db->query($sql);
+	}
+
+	public function cleanup(int $days): void {
+		$before = gmdate('Y-m-d', time() - DAY_IN_SECONDS * max(1, $days));
+		$this->db->query($this->db->prepare("DELETE FROM {$this->events} WHERE event_date < %s", $before));
+	}
+
+	private static function date_or_null(string $value): ?string {
+		if (!$value) return null;
+		$timestamp = strtotime($value);
+		return $timestamp ? gmdate('Y-m-d H:i:s', $timestamp) : null;
+	}
+}

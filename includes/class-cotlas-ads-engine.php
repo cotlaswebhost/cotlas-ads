@@ -1,0 +1,146 @@
+<?php
+defined('ABSPATH') || exit;
+
+final class Cotlas_Ads_Engine {
+	private Cotlas_Ads_Repository $repository;
+	private array $settings;
+
+	public function __construct(Cotlas_Ads_Repository $repository) {
+		$this->repository = $repository;
+		$this->settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('header_code' => '', 'injections' => array()));
+		add_shortcode('cotlas_ad', array($this, 'shortcode'));
+		add_action('wp_head', array($this, 'header_code'), 99);
+		add_filter('the_content', array($this, 'inject_content'), 20);
+		add_action('init', array($this, 'register_block'));
+		add_action('init', array($this, 'ads_txt_route'));
+	}
+
+	public function register_block(): void {
+		register_block_type('cotlas/ads', array(
+			'attributes' => array('zone' => array('type' => 'string', 'default' => '')),
+			'render_callback' => function (array $attributes): string {
+				return $this->render_zone($attributes['zone'] ?? '');
+			},
+		));
+	}
+
+	public function shortcode(array $attributes = array()): string {
+		$attributes = shortcode_atts(array('id' => 0, 'zone' => '', 'class' => ''), $attributes, 'cotlas_ad');
+		return $attributes['zone'] !== ''
+			? $this->render_zone($attributes['zone'], array('class' => $attributes['class']))
+			: $this->render_ad(absint($attributes['id']), array('class' => $attributes['class']));
+	}
+
+	public function render_zone($id_or_slug, array $args = array()): string {
+		$zone = $this->repository->zone($id_or_slug);
+		if (!$zone) return '';
+		$ads = array_filter(array_map(array($this->repository, 'ad'), array_map('absint', explode(',', (string) $zone['ad_ids']))));
+		$eligible = array_values(array_filter($ads, array($this, 'is_eligible')));
+		if (!$eligible) return (string) $zone['fallback'];
+		if ($zone['mode'] === 'all') {
+			$html = '';
+			foreach ($eligible as $ad) $html .= $this->creative($ad, (int) $zone['id']);
+		} else {
+			$ad = $zone['mode'] === 'random' ? $eligible[array_rand($eligible)] : $this->weighted_pick($eligible);
+			$html = $this->creative($ad, (int) $zone['id']);
+		}
+		$class = trim('cotlas-zone ' . sanitize_html_class($zone['css_class']) . ' ' . sanitize_html_class($args['class'] ?? ''));
+		return '<div class="' . esc_attr($class) . '" data-cotlas-zone="' . absint($zone['id']) . '">' . $html . '</div>';
+	}
+
+	public function render_ad(int $id, array $args = array()): string {
+		$ad = $this->repository->ad($id);
+		if (!$ad || !$this->is_eligible($ad)) return '';
+		$class = trim('cotlas-placement ' . sanitize_html_class($args['class'] ?? ''));
+		return '<div class="' . esc_attr($class) . '">' . $this->creative($ad, 0) . '</div>';
+	}
+
+	public function is_eligible(array $ad): bool {
+		if ($ad['status'] !== 'active') return false;
+		$now = current_time('timestamp');
+		if ($ad['start_at'] && $now < strtotime($ad['start_at'])) return false;
+		if ($ad['end_at'] && $now > strtotime($ad['end_at'])) return false;
+		if (!$ad['include_logged_in'] && is_user_logged_in()) return false;
+		if ($ad['days'] !== '' && !in_array((string) current_time('w'), array_map('trim', explode(',', $ad['days'])), true)) return false;
+		if ($ad['hours'] !== '' && !in_array((string) current_time('G'), array_map('trim', explode(',', $ad['hours'])), true)) return false;
+		if (!$this->device_matches($ad['device'])) return false;
+		if (!$this->country_matches($ad['countries'])) return false;
+		$totals = $this->repository->totals((int) $ad['id'], 3650);
+		if ($ad['max_impressions'] && $totals['impression'] >= (int) $ad['max_impressions']) return false;
+		if ($ad['max_clicks'] && $totals['click'] >= (int) $ad['max_clicks']) return false;
+		return true;
+	}
+
+	private function creative(array $ad, int $zone_id): string {
+		$body = (string) $ad['content'];
+		if ($ad['creative_type'] === 'image' && $ad['image_id']) {
+			$body = wp_get_attachment_image((int) $ad['image_id'], 'full', false, array('loading' => 'lazy', 'decoding' => 'async', 'alt' => $ad['name']));
+		}
+		if ($ad['target_url']) {
+			$url = add_query_arg(array(
+				'cotlas-ad-click' => (int) $ad['id'],
+				'zone' => $zone_id,
+				'token' => wp_create_nonce('cotlas_click_' . (int) $ad['id']),
+			), home_url('/'));
+			$body = '<a href="' . esc_url($url) . '" rel="sponsored noopener" target="_blank">' . $body . '</a>';
+		}
+		$pixel = add_query_arg(array('cotlas-ad-view' => (int) $ad['id'], 'zone' => $zone_id), home_url('/'));
+		return '<div class="cotlas-ad" data-cotlas-ad="' . absint($ad['id']) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>';
+	}
+
+	private function weighted_pick(array $ads): array {
+		$total = array_sum(array_map(fn($ad) => max(1, (int) $ad['weight']), $ads));
+		$pick = random_int(1, max(1, $total));
+		foreach ($ads as $ad) {
+			$pick -= max(1, (int) $ad['weight']);
+			if ($pick <= 0) return $ad;
+		}
+		return $ads[0];
+	}
+
+	private function device_matches(string $device): bool {
+		if ($device === 'all') return true;
+		$mobile = wp_is_mobile();
+		$ua = strtolower($_SERVER['HTTP_USER_AGENT'] ?? '');
+		$tablet = $mobile && (str_contains($ua, 'ipad') || str_contains($ua, 'tablet') || (str_contains($ua, 'android') && !str_contains($ua, 'mobile')));
+		return ($device === 'tablet' && $tablet) || ($device === 'mobile' && $mobile && !$tablet) || ($device === 'desktop' && !$mobile);
+	}
+
+	private function country_matches(string $countries): bool {
+		if (trim($countries) === '') return true;
+		$country = strtoupper(sanitize_text_field($_SERVER['HTTP_CF_IPCOUNTRY'] ?? $_SERVER['HTTP_X_COUNTRY_CODE'] ?? ''));
+		return $country === '' || in_array($country, array_map('trim', explode(',', strtoupper($countries))), true);
+	}
+
+	public function header_code(): void {
+		// Stored only by administrators with unfiltered_html; ad networks require script tags.
+		if (!empty($this->settings['header_code'])) echo "\n" . $this->settings['header_code'] . "\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	}
+
+	public function inject_content(string $content): string {
+		if (!is_singular() || !is_main_query() || !in_the_loop()) return $content;
+		foreach ((array) ($this->settings['injections'] ?? array()) as $rule) {
+			if (empty($rule['zone']) || !in_array(get_post_type(), (array) ($rule['post_types'] ?? array('post')), true)) continue;
+			$ad = $this->render_zone($rule['zone']);
+			if (($rule['position'] ?? '') === 'before') $content = $ad . $content;
+			elseif (($rule['position'] ?? '') === 'after') $content .= $ad;
+			elseif (($rule['position'] ?? '') === 'paragraph') {
+				$parts = explode('</p>', $content);
+				$at = min(max(1, absint($rule['paragraph'] ?? 2)), count($parts));
+				array_splice($parts, $at, 0, $ad);
+				$content = implode('</p>', $parts);
+			}
+		}
+		return $content;
+	}
+
+	public function ads_txt_route(): void {
+		if (($_SERVER['REQUEST_URI'] ?? '') !== '/ads.txt') return;
+		$text = trim((string) ($this->settings['ads_txt'] ?? ''));
+		if ($text === '') return;
+		status_header(200);
+		header('Content-Type: text/plain; charset=utf-8');
+		echo esc_html($text);
+		exit;
+	}
+}
