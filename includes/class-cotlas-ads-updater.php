@@ -14,6 +14,7 @@ final class Cotlas_Ads_Updater {
 		add_filter('update_plugins_github.com', array($this, 'update_uri'), 10, 4);
 		add_filter('plugins_api', array($this, 'information'), 10, 3);
 		add_filter('upgrader_post_install', array($this, 'normalize_folder'), 10, 3);
+		add_action('upgrader_process_complete', array($this, 'clear_cache_after_update'), 10, 2);
 		add_action('admin_init', array($this, 'clear_cache_on_force_check'), 1);
 	}
 
@@ -26,7 +27,12 @@ final class Cotlas_Ads_Updater {
 		$release = $this->release();
 		if (!$release || empty($release['tag_name'])) return $transient;
 		$remote = ltrim($release['tag_name'], 'vV');
-		if (!version_compare(COTLAS_ADS_VERSION, $remote, '<')) return $transient;
+		$installed = (string) $transient->checked[$this->basename];
+		if (!version_compare($installed, $remote, '<')) {
+			unset($transient->response[$this->basename]);
+			$transient->no_update[$this->basename] = (object) $this->update_data($remote, $release);
+			return $transient;
+		}
 		$transient->response[$this->basename] = (object) array('slug' => 'cotlas-ads', 'plugin' => $this->basename, 'new_version' => $remote, 'url' => 'https://github.com/' . $this->repository, 'package' => $this->package($release), 'tested' => '7.1', 'requires_php' => '8.0');
 		return $transient;
 	}
@@ -35,14 +41,17 @@ final class Cotlas_Ads_Updater {
 		if ($plugin_file !== $this->basename) return $update;
 		$release = $this->release();
 		if (!$release || empty($release['tag_name'])) return $update;
-		return array(
-			'slug' => 'cotlas-ads',
-			'version' => ltrim($release['tag_name'], 'vV'),
-			'url' => 'https://github.com/' . $this->repository,
-			'package' => $this->package($release),
-			'tested' => '7.1',
-			'requires_php' => '8.0',
-		);
+		$remote = ltrim($release['tag_name'], 'vV');
+		$installed = (string) ($plugin_data['Version'] ?? COTLAS_ADS_VERSION);
+		return version_compare($installed, $remote, '<') ? $this->update_data($remote, $release) : false;
+	}
+
+	public function clear_cache_after_update($upgrader, array $hook_extra): void {
+		if (($hook_extra['type'] ?? '') !== 'plugin' || ($hook_extra['action'] ?? '') !== 'update') return;
+		$plugins = isset($hook_extra['plugins']) ? (array) $hook_extra['plugins'] : array($hook_extra['plugin'] ?? '');
+		if (!in_array($this->basename, $plugins, true)) return;
+		delete_site_transient('cotlas_ads_github_release');
+		delete_site_transient('update_plugins');
 	}
 
 	public function information($result, string $action, $args) {
@@ -80,5 +89,18 @@ final class Cotlas_Ads_Updater {
 			if (str_ends_with(strtolower($asset['name'] ?? ''), '.zip')) return esc_url_raw($asset['browser_download_url'] ?? '');
 		}
 		return esc_url_raw($release['zipball_url'] ?? '');
+	}
+
+	private function update_data(string $remote, array $release): array {
+		return array(
+			'slug' => 'cotlas-ads',
+			'plugin' => $this->basename,
+			'version' => $remote,
+			'new_version' => $remote,
+			'url' => 'https://github.com/' . $this->repository,
+			'package' => $this->package($release),
+			'tested' => '7.1',
+			'requires_php' => '8.0',
+		);
 	}
 }
