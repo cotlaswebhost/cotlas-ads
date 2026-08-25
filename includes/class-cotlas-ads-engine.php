@@ -7,18 +7,23 @@ final class Cotlas_Ads_Engine {
 
 	public function __construct(Cotlas_Ads_Repository $repository) {
 		$this->repository = $repository;
-		$this->settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('header_code' => '', 'injections' => array()));
+		$this->settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('header_code' => '', 'injections' => array(), 'ad_label' => 'Advertisement', 'adblock_enabled' => 0, 'adblock_dismissible' => 1, 'adblock_title' => 'Please disable your ad blocker', 'adblock_message' => 'Advertising supports our newsroom. Please disable your ad blocker and reload this page to continue.'));
 		add_shortcode('cotlas_ad', array($this, 'shortcode'));
 		add_action('wp_head', array($this, 'header_code'), 99);
 		add_filter('the_content', array($this, 'inject_content'), 20);
 		add_action('init', array($this, 'register_block'));
 		add_action('init', array($this, 'ads_txt_route'));
 		add_action('wp_enqueue_scripts', array($this, 'register_assets'));
+		add_action('wp_footer', array($this, 'adblock_markup'), 100);
 	}
 
 	public function register_assets(): void {
 		wp_register_style('cotlas-ads-front', COTLAS_ADS_URL . 'assets/frontend.css', array(), COTLAS_ADS_VERSION);
 		wp_register_script('cotlas-ads-front', COTLAS_ADS_URL . 'assets/frontend.js', array(), COTLAS_ADS_VERSION, true);
+		if (!empty($this->settings['adblock_enabled'])) {
+			wp_enqueue_style('cotlas-ads-front');
+			wp_enqueue_script('cotlas-ads-front');
+		}
 	}
 
 	public function register_block(): void {
@@ -105,7 +110,26 @@ final class Cotlas_Ads_Engine {
 		$style = '';
 		if ((int) $ad['canvas_width'] > 0) $style .= 'width:min(100%,' . absint($ad['canvas_width']) . 'px);';
 		if ((int) $ad['canvas_height'] > 0) $style .= 'height:' . absint($ad['canvas_height']) . 'px;';
-		return '<div class="cotlas-ad cotlas-type-' . esc_attr($ad['creative_type']) . '" style="' . esc_attr($style) . '" data-cotlas-ad="' . absint($ad['id']) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>';
+		$label = trim((string) $this->settings['ad_label']);
+		$label_html = $label !== '' ? '<div class="cotlas-ad-label">' . esc_html($label) . '</div>' : '';
+		return '<div class="cotlas-ad cotlas-type-' . esc_attr($ad['creative_type']) . '" style="' . esc_attr($style) . '" data-cotlas-ad="' . absint($ad['id']) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>' . $label_html;
+	}
+
+	public function adblock_markup(): void {
+		if (empty($this->settings['adblock_enabled'])) return;
+		$dismissible = !empty($this->settings['adblock_dismissible']);
+		?>
+		<div class="adsbox ad-banner cotlas-adblock-bait" aria-hidden="true">&nbsp;</div>
+		<div class="cotlas-adblock-overlay" data-cotlas-adblock-overlay data-dismissible="<?php echo $dismissible ? '1' : '0'; ?>" hidden>
+			<div class="cotlas-adblock-dialog" role="dialog" aria-modal="true" aria-labelledby="cotlas-adblock-title" aria-describedby="cotlas-adblock-message">
+				<div class="cotlas-adblock-icon" aria-hidden="true">!</div>
+				<h2 id="cotlas-adblock-title"><?php echo esc_html($this->settings['adblock_title']); ?></h2>
+				<p id="cotlas-adblock-message"><?php echo esc_html($this->settings['adblock_message']); ?></p>
+				<button type="button" class="cotlas-adblock-reload" data-adblock-reload>Reload after disabling</button>
+				<?php if ($dismissible): ?><button type="button" class="cotlas-adblock-dismiss" data-adblock-dismiss>Continue without disabling</button><?php endif; ?>
+			</div>
+		</div>
+		<?php
 	}
 
 	private function weighted_pick(array $ads): array {

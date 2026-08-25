@@ -39,3 +39,33 @@ document.querySelector('[data-media-slider]')?.addEventListener('click', () => {
   });
   frame.open();
 });
+
+document.querySelectorAll('[data-multiselect]').forEach((multi) => {
+  const toggle = multi.querySelector('[data-multiselect-toggle]');
+  const panel = multi.querySelector('[data-multiselect-panel]');
+  const search = multi.querySelector('[data-multiselect-search]');
+  const options = [...multi.querySelectorAll('[data-multiselect-option]')];
+  const summary = multi.querySelector('[data-multiselect-summary]');
+  const updateSummary = () => {
+    const names = options.filter((option) => option.querySelector('input').checked).map((option) => option.querySelector('span').textContent.trim());
+    summary.textContent = names.length ? (names.length <= 2 ? names.join(', ') : `${names.length} selected`) : 'Select…';
+  };
+  toggle.addEventListener('click', () => {
+    const opening = panel.hidden;
+    panel.hidden = !opening;
+    toggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
+    if (opening) search.focus();
+  });
+  search.addEventListener('input', () => {
+    const query = search.value.trim().toLowerCase();
+    options.forEach((option) => option.hidden = !option.dataset.label.includes(query));
+  });
+  options.forEach((option) => option.querySelector('input').addEventListener('change', updateSummary));
+  document.addEventListener('click', (event) => {
+    if (!multi.contains(event.target)) {
+      panel.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+  });
+  updateSummary();
+});

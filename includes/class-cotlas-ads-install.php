@@ -89,6 +89,11 @@ final class Cotlas_Ads_Install {
 			'header_code' => '',
 			'ads_txt' => '',
 			'injections' => array(),
+			'ad_label' => 'Advertisement',
+			'adblock_enabled' => 0,
+			'adblock_dismissible' => 1,
+			'adblock_title' => 'Please disable your ad blocker',
+			'adblock_message' => 'Advertising supports our newsroom. Please disable your ad blocker and reload this page to continue.',
 		));
 	}
 

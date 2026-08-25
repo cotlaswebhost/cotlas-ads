@@ -21,4 +21,24 @@ document.addEventListener('DOMContentLoaded', () => {
     slider.querySelector('.cotlas-slider-prev').addEventListener('click', (event) => { event.preventDefault(); move(-1); });
     slider.querySelector('.cotlas-slider-next').addEventListener('click', (event) => { event.preventDefault(); move(1); });
   });
+
+  const overlay = document.querySelector('[data-cotlas-adblock-overlay]');
+  if (overlay) {
+    const dismissed = overlay.dataset.dismissible === '1' && window.sessionStorage.getItem('cotlas_adblock_dismissed') === '1';
+    window.setTimeout(() => {
+      const bait = document.querySelector('.cotlas-adblock-bait');
+      const blocked = !bait || bait.offsetParent === null || bait.offsetHeight === 0 || bait.offsetWidth === 0 || window.getComputedStyle(bait).display === 'none';
+      if (blocked && !dismissed) {
+        overlay.hidden = false;
+        document.documentElement.classList.add('cotlas-adblock-locked');
+        overlay.querySelector('button')?.focus();
+      }
+    }, 900);
+    overlay.querySelector('[data-adblock-reload]')?.addEventListener('click', () => window.location.reload());
+    overlay.querySelector('[data-adblock-dismiss]')?.addEventListener('click', () => {
+      window.sessionStorage.setItem('cotlas_adblock_dismissed', '1');
+      overlay.hidden = true;
+      document.documentElement.classList.remove('cotlas-adblock-locked');
+    });
+  }
 });
