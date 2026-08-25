@@ -13,6 +13,12 @@ final class Cotlas_Ads_Engine {
 		add_filter('the_content', array($this, 'inject_content'), 20);
 		add_action('init', array($this, 'register_block'));
 		add_action('init', array($this, 'ads_txt_route'));
+		add_action('wp_enqueue_scripts', array($this, 'register_assets'));
+	}
+
+	public function register_assets(): void {
+		wp_register_style('cotlas-ads-front', COTLAS_ADS_URL . 'assets/frontend.css', array(), COTLAS_ADS_VERSION);
+		wp_register_script('cotlas-ads-front', COTLAS_ADS_URL . 'assets/frontend.js', array(), COTLAS_ADS_VERSION, true);
 	}
 
 	public function register_block(): void {
@@ -57,7 +63,7 @@ final class Cotlas_Ads_Engine {
 
 	public function is_eligible(array $ad): bool {
 		if ($ad['status'] !== 'active') return false;
-		$now = current_time('timestamp');
+		$now = time();
 		if ($ad['start_at'] && $now < strtotime($ad['start_at'])) return false;
 		if ($ad['end_at'] && $now > strtotime($ad['end_at'])) return false;
 		if (!$ad['include_logged_in'] && is_user_logged_in()) return false;
@@ -65,27 +71,41 @@ final class Cotlas_Ads_Engine {
 		if ($ad['hours'] !== '' && !in_array((string) current_time('G'), array_map('trim', explode(',', $ad['hours'])), true)) return false;
 		if (!$this->device_matches($ad['device'])) return false;
 		if (!$this->country_matches($ad['countries'])) return false;
-		$totals = $this->repository->totals((int) $ad['id'], 3650);
-		if ($ad['max_impressions'] && $totals['impression'] >= (int) $ad['max_impressions']) return false;
-		if ($ad['max_clicks'] && $totals['click'] >= (int) $ad['max_clicks']) return false;
+		if ($ad['max_impressions'] || $ad['max_clicks']) {
+			$totals = $this->repository->totals((int) $ad['id'], 3650);
+			if ($ad['max_impressions'] && $totals['impression'] >= (int) $ad['max_impressions']) return false;
+			if ($ad['max_clicks'] && $totals['click'] >= (int) $ad['max_clicks']) return false;
+		}
 		return true;
 	}
 
 	private function creative(array $ad, int $zone_id): string {
+		wp_enqueue_style('cotlas-ads-front');
+		$click_url = '';
+		if ($ad['target_url']) {
+			$click_url = add_query_arg(array('cotlas-ad-click' => (int) $ad['id'], 'zone' => $zone_id, 'token' => substr(wp_hash('cotlas_click_' . (int) $ad['id']), 0, 20)), home_url('/'));
+		}
 		$body = (string) $ad['content'];
 		if ($ad['creative_type'] === 'image' && $ad['image_id']) {
-			$body = wp_get_attachment_image((int) $ad['image_id'], 'full', false, array('loading' => 'lazy', 'decoding' => 'async', 'alt' => $ad['name']));
+			$body = wp_get_attachment_image((int) $ad['image_id'], 'full', false, array('loading' => 'lazy', 'decoding' => 'async', 'alt' => $ad['name'], 'class' => 'cotlas-ad-image'));
+		} elseif ($ad['creative_type'] === 'slider') {
+			wp_enqueue_script('cotlas-ads-front');
+			$slides = '';
+			foreach (array_values(array_filter(array_map('absint', explode(',', (string) $ad['slider_image_ids'])))) as $index => $image_id) {
+				$image = wp_get_attachment_image($image_id, 'full', false, array('loading' => $index === 0 ? 'eager' : 'lazy', 'decoding' => 'async', 'alt' => $ad['name'], 'class' => 'cotlas-ad-image'));
+				if ($click_url) $image = '<a href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . $image . '</a>';
+				$slides .= '<div class="cotlas-slide' . ($index === 0 ? ' is-active' : '') . '">' . $image . '</div>';
+			}
+			if ($slides !== '') $body = '<div class="cotlas-slider" data-cotlas-slider data-interval="' . absint($ad['slider_interval']) . '">' . $slides . '<button type="button" class="cotlas-slider-prev" aria-label="Previous advertisement">‹</button><button type="button" class="cotlas-slider-next" aria-label="Next advertisement">›</button></div>';
 		}
-		if ($ad['target_url']) {
-			$url = add_query_arg(array(
-				'cotlas-ad-click' => (int) $ad['id'],
-				'zone' => $zone_id,
-				'token' => wp_create_nonce('cotlas_click_' . (int) $ad['id']),
-			), home_url('/'));
-			$body = '<a href="' . esc_url($url) . '" rel="sponsored noopener" target="_blank">' . $body . '</a>';
+		if ($click_url && $ad['creative_type'] !== 'slider') {
+			$body = '<a href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . $body . '</a>';
 		}
 		$pixel = add_query_arg(array('cotlas-ad-view' => (int) $ad['id'], 'zone' => $zone_id), home_url('/'));
-		return '<div class="cotlas-ad" data-cotlas-ad="' . absint($ad['id']) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>';
+		$style = '';
+		if ((int) $ad['canvas_width'] > 0) $style .= 'width:min(100%,' . absint($ad['canvas_width']) . 'px);';
+		if ((int) $ad['canvas_height'] > 0) $style .= 'height:' . absint($ad['canvas_height']) . 'px;';
+		return '<div class="cotlas-ad cotlas-type-' . esc_attr($ad['creative_type']) . '" style="' . esc_attr($style) . '" data-cotlas-ad="' . absint($ad['id']) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>';
 	}
 
 	private function weighted_pick(array $ads): array {

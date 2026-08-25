@@ -29,10 +29,14 @@ final class Cotlas_Ads_Repository {
 		$row = array(
 			'name' => sanitize_text_field($data['name'] ?? ''),
 			'status' => in_array($data['status'] ?? '', array('active', 'paused', 'draft'), true) ? $data['status'] : 'draft',
-			'creative_type' => in_array($data['creative_type'] ?? '', array('html', 'image'), true) ? $data['creative_type'] : 'html',
+			'creative_type' => in_array($data['creative_type'] ?? '', array('html', 'image', 'slider'), true) ? $data['creative_type'] : 'html',
 			'content' => current_user_can('unfiltered_html') ? (string) ($data['content'] ?? '') : wp_kses_post($data['content'] ?? ''),
 			'image_id' => absint($data['image_id'] ?? 0),
+			'slider_image_ids' => implode(',', array_filter(array_map('absint', explode(',', (string) ($data['slider_image_ids'] ?? ''))))),
 			'target_url' => esc_url_raw($data['target_url'] ?? ''),
+			'canvas_width' => min(4096, absint($data['canvas_width'] ?? 0)),
+			'canvas_height' => min(4096, absint($data['canvas_height'] ?? 0)),
+			'slider_interval' => min(60, max(2, absint($data['slider_interval'] ?? 5))),
 			'weight' => min(100, max(1, absint($data['weight'] ?? 10))),
 			'start_at' => self::date_or_null($data['start_at'] ?? ''),
 			'end_at' => self::date_or_null($data['end_at'] ?? ''),
@@ -53,6 +57,26 @@ final class Cotlas_Ads_Repository {
 		$row['created_at'] = $now;
 		$this->db->insert($this->ads, $row);
 		return (int) $this->db->insert_id;
+	}
+
+	public function zone_ids_for_ad(int $ad_id): array {
+		$ids = array();
+		foreach ($this->zones() as $zone) {
+			if (in_array($ad_id, array_map('absint', explode(',', (string) $zone['ad_ids'])), true)) $ids[] = (int) $zone['id'];
+		}
+		return $ids;
+	}
+
+	public function assign_ad_to_zones(int $ad_id, array $zone_ids): void {
+		$selected = array_map('absint', $zone_ids);
+		foreach ($this->zones() as $zone) {
+			$ad_ids = array_values(array_filter(array_map('absint', explode(',', (string) $zone['ad_ids']))));
+			$has = in_array($ad_id, $ad_ids, true);
+			$should = in_array((int) $zone['id'], $selected, true);
+			if ($should && !$has) $ad_ids[] = $ad_id;
+			if (!$should && $has) $ad_ids = array_values(array_diff($ad_ids, array($ad_id)));
+			if ($has !== $should) $this->db->update($this->zones, array('ad_ids' => implode(',', $ad_ids), 'updated_at' => current_time('mysql')), array('id' => (int) $zone['id']));
+		}
 	}
 
 	public function delete_ad(int $id): void {
@@ -108,6 +132,18 @@ final class Cotlas_Ads_Repository {
 		return $result;
 	}
 
+	public function totals_by_ad(int $days = 30): array {
+		$since = gmdate('Y-m-d', time() - DAY_IN_SECONDS * $days);
+		$rows = $this->db->get_results($this->db->prepare("SELECT ad_id,event_type,SUM(count) count FROM {$this->events} WHERE event_date >= %s GROUP BY ad_id,event_type", $since), ARRAY_A) ?: array();
+		$result = array();
+		foreach ($rows as $row) {
+			$id = (int) $row['ad_id'];
+			if (!isset($result[$id])) $result[$id] = array('impression' => 0, 'click' => 0);
+			$result[$id][$row['event_type']] = (int) $row['count'];
+		}
+		return $result;
+	}
+
 	public function increment(int $ad_id, int $zone_id, string $type): void {
 		if (!in_array($type, array('impression', 'click'), true)) return;
 		$date = current_time('Y-m-d');
@@ -126,7 +162,11 @@ final class Cotlas_Ads_Repository {
 
 	private static function date_or_null(string $value): ?string {
 		if (!$value) return null;
-		$timestamp = strtotime($value);
-		return $timestamp ? gmdate('Y-m-d H:i:s', $timestamp) : null;
+		try {
+			$date = new DateTimeImmutable($value, wp_timezone());
+			return $date->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+		} catch (Exception $exception) {
+			return null;
+		}
 	}
 }

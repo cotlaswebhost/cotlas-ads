@@ -3,6 +3,21 @@ defined('ABSPATH') || exit;
 
 final class Cotlas_Ads_Install {
 	public static function activate(): void {
+		self::install_schema();
+		self::add_roles();
+		if (!wp_next_scheduled('cotlas_ads_daily_cleanup')) {
+			wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'cotlas_ads_daily_cleanup');
+		}
+		flush_rewrite_rules();
+	}
+
+	public static function maybe_upgrade(): void {
+		if (get_option('cotlas_ads_version') !== COTLAS_ADS_VERSION) {
+			self::install_schema();
+		}
+	}
+
+	private static function install_schema(): void {
 		global $wpdb;
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		$charset = $wpdb->get_charset_collate();
@@ -17,7 +32,11 @@ final class Cotlas_Ads_Install {
 			creative_type varchar(20) NOT NULL DEFAULT 'html',
 			content longtext NOT NULL,
 			image_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			slider_image_ids text NULL,
 			target_url text NULL,
+			canvas_width smallint unsigned NOT NULL DEFAULT 0,
+			canvas_height smallint unsigned NOT NULL DEFAULT 0,
+			slider_interval smallint unsigned NOT NULL DEFAULT 5,
 			weight smallint unsigned NOT NULL DEFAULT 10,
 			start_at datetime NULL,
 			end_at datetime NULL,
@@ -61,7 +80,7 @@ final class Cotlas_Ads_Install {
 			KEY event_date (event_date)
 		) {$charset};");
 
-		add_option('cotlas_ads_version', COTLAS_ADS_VERSION);
+		update_option('cotlas_ads_version', COTLAS_ADS_VERSION, false);
 		add_option('cotlas_ads_settings', array(
 			'track_impressions' => 1,
 			'track_clicks' => 1,
@@ -71,11 +90,6 @@ final class Cotlas_Ads_Install {
 			'ads_txt' => '',
 			'injections' => array(),
 		));
-		self::add_roles();
-		if (!wp_next_scheduled('cotlas_ads_daily_cleanup')) {
-			wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'cotlas_ads_daily_cleanup');
-		}
-		flush_rewrite_rules();
 	}
 
 	public static function deactivate(): void {
@@ -96,4 +110,3 @@ final class Cotlas_Ads_Install {
 		));
 	}
 }
-

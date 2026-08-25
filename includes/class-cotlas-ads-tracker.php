@@ -12,10 +12,10 @@ final class Cotlas_Ads_Tracker {
 
 	public function handle(): void {
 		$settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('track_impressions' => 1, 'track_clicks' => 1, 'bot_filter' => 1));
-		if (!empty($settings['bot_filter']) && $this->is_bot()) return;
+		$is_bot = !empty($settings['bot_filter']) && $this->is_bot();
 
 		if (isset($_GET['cotlas-ad-view'])) {
-			if (!empty($settings['track_impressions'])) $this->repository->increment(absint($_GET['cotlas-ad-view']), absint($_GET['zone'] ?? 0), 'impression');
+			if (!$is_bot && !empty($settings['track_impressions'])) $this->repository->increment(absint($_GET['cotlas-ad-view']), absint($_GET['zone'] ?? 0), 'impression');
 			nocache_headers();
 			header('Content-Type: image/gif');
 			echo base64_decode('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==');
@@ -26,8 +26,10 @@ final class Cotlas_Ads_Tracker {
 			$ad_id = absint($_GET['cotlas-ad-click']);
 			$ad = $this->repository->ad($ad_id);
 			$target = $ad ? esc_url_raw($ad['target_url']) : '';
-			if (!$target || !wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['token'] ?? '')), 'cotlas_click_' . $ad_id)) return;
-			if (!empty($settings['track_clicks'])) $this->repository->increment($ad_id, absint($_GET['zone'] ?? 0), 'click');
+			$expected = substr(wp_hash('cotlas_click_' . $ad_id), 0, 20);
+			$provided = sanitize_text_field(wp_unslash($_GET['token'] ?? ''));
+			if (!$target || !hash_equals($expected, $provided)) return;
+			if (!$is_bot && !empty($settings['track_clicks'])) $this->repository->increment($ad_id, absint($_GET['zone'] ?? 0), 'click');
 			wp_redirect($target, 302, 'Cotlas Ads');
 			exit;
 		}
