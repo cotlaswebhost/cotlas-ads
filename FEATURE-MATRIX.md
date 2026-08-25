@@ -2,7 +2,7 @@
 
 Cotlas Ads is an original implementation. It does not load or modify either AdRotate package.
 
-## Included in 0.3.9
+## Included in 0.3.10
 
 - Campaign and placement management
 - HTML/ad-tag and Media Library image creatives
@@ -21,6 +21,7 @@ Cotlas Ads is an original implementation. It does not load or modify either AdRo
 - Native WordPress Update URI discovery with strict version comparison and post-update cache invalidation
 - Automatic immutable placement slugs and improved searchable assignment filtering
 - Layered ad-block detection using a first-party script probe, a bait element, and real creative visibility
+- Differential ad-block probing with a neutral control request and cache-safe probe versioning
 - Weighted, equal-random, and show-all rotation
 - Start/end scheduling, weekday and hour windows
 - Desktop, mobile, and tablet targeting
@@ -38,7 +39,7 @@ Cotlas Ads is an original implementation. It does not load or modify either AdRo
 
 ## Planned compatibility work
 
-These are not represented as complete in 0.3.9 and should be developed against explicit newsroom requirements rather than copied from a third-party implementation:
+These are not represented as complete in 0.3.10 and should be developed against explicit newsroom requirements rather than copied from a third-party implementation:
 
 - A migration wizard for AdRotate free database records
 - Dedicated advertiser self-service campaign editing and email notifications

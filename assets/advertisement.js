@@ -1,1 +1,5 @@
-window.cotlasAdvertisementProbe = '0.3.9';
+(function () {
+	const script = document.currentScript;
+	const version = script ? new URL(script.src, window.location.href).searchParams.get('ver') : '';
+	window.cotlasAdvertisementProbe = version || true;
+}());
