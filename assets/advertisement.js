@@ -1,1 +1,1 @@
-window.cotlasAdvertisementProbe = '0.3.8';
+window.cotlasAdvertisementProbe = '0.3.9';

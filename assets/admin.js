@@ -46,19 +46,40 @@ document.querySelector('[data-media-single]')?.addEventListener('click', () => {
 });
 
 document.querySelector('[data-media-slider]')?.addEventListener('click', () => {
-	const frame = wp.media({ title: 'Select carousel images of the same size', button: { text: 'Use these images' }, multiple: true, library: { type: 'image' } });
-  frame.on('select', () => {
+	const frame = wp.media({ title: 'Select carousel images of the same size', button: { text: 'Use selected images' }, multiple: 'add', library: { type: 'image' } });
+	const storedIds = (document.querySelector('[data-slider-ids]')?.value || '').split(',').map(Number).filter(Boolean);
+	frame.on('open', () => {
+		const selection = frame.state().get('selection');
+		storedIds.forEach((id) => {
+			const attachment = wp.media.attachment(id);
+			attachment.fetch();
+			selection.add(attachment);
+		});
+	});
+	frame.on('select', () => {
     const images = frame.state().get('selection').toJSON();
 	const dimensions = [...new Set(images.map((image) => `${image.width}x${image.height}`))];
 	if (dimensions.length > 1) {
 	  window.alert(`All slider images must have the same dimensions. Selected sizes: ${dimensions.join(', ')}`);
 	  return;
 	}
-    document.querySelector('[data-slider-ids]').value = images.map((image) => image.id).join(',');
-    document.querySelector('[data-slider-preview]').innerHTML = images.map((image) => `<img src="${image.sizes?.thumbnail?.url || image.url}" alt="">`).join('');
-  });
-  frame.open();
+		document.querySelector('[data-slider-ids]').value = images.map((image) => image.id).join(',');
+		document.querySelector('[data-slider-preview]').innerHTML = images.map((image) => `<img src="${image.sizes?.thumbnail?.url || image.url}" alt="">`).join('');
+		updateCarouselCount(images.length);
+	});
+	frame.open();
 });
+
+const carouselButton = document.querySelector('[data-media-slider]');
+const carouselCount = carouselButton ? document.createElement('small') : null;
+const updateCarouselCount = (count) => {
+	if (carouselCount) carouselCount.textContent = `${count} image${count === 1 ? '' : 's'} currently selected`;
+};
+if (carouselButton && carouselCount) {
+	carouselCount.dataset.sliderCount = '';
+	carouselButton.closest('.media-button-row')?.after(carouselCount);
+	updateCarouselCount((document.querySelector('[data-slider-ids]')?.value || '').split(',').filter(Boolean).length);
+}
 
 document.querySelector('[data-media-video]')?.addEventListener('click', () => {
 	if (!window.cotlasAdsAdmin?.videoEnabled) return;

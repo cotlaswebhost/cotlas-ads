@@ -1,4 +1,4 @@
-.cotlas-zone,.cotlas-placement{max-width:100%}
+.cotlas-zone,.cotlas-placement{width:100%;max-width:100%;min-width:0;flex:1 1 100%}
 .cotlas-ad{position:relative;max-width:100%;margin-inline:auto}
 .cotlas-ad-frame{position:relative;width:100%;overflow:hidden}
 .cotlas-ad-frame>a{display:block;width:100%;height:100%}

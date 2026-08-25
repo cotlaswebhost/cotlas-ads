@@ -27,6 +27,7 @@ final class Cotlas_Ads_Admin {
 	public function assets(string $hook): void {
 		if ($hook !== 'toplevel_page_cotlas-ads') return;
 		wp_enqueue_style('cotlas-ads-admin', COTLAS_ADS_URL . 'assets/admin.css', array(), COTLAS_ADS_VERSION);
+		wp_add_inline_style('cotlas-ads-admin', '.media-modal .attachment .check{opacity:0}.media-modal .attachment:hover .check,.media-modal .attachment.selected .check{opacity:1}');
 		wp_enqueue_script('cotlas-ads-admin', COTLAS_ADS_URL . 'assets/admin.js', array(), COTLAS_ADS_VERSION, true);
 		wp_enqueue_media();
 		$settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('video_upload_enabled' => 0, 'video_max_mb' => 20));
