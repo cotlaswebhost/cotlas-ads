@@ -19,6 +19,10 @@ final class Cotlas_Ads_Repository {
 		return $this->db->get_results("SELECT * FROM {$this->ads} ORDER BY updated_at DESC", ARRAY_A) ?: array();
 	}
 
+	public function ads_for_advertiser(int $user_id): array {
+		return $this->db->get_results($this->db->prepare("SELECT * FROM {$this->ads} WHERE advertiser_user_id=%d ORDER BY updated_at DESC", $user_id), ARRAY_A) ?: array();
+	}
+
 	public function ad(int $id): ?array {
 		$row = $this->db->get_row($this->db->prepare("SELECT * FROM {$this->ads} WHERE id=%d", $id), ARRAY_A);
 		return $row ?: null;
@@ -51,6 +55,8 @@ final class Cotlas_Ads_Repository {
 			'include_logged_in' => empty($data['include_logged_in']) ? 0 : 1,
 			'max_impressions' => absint($data['max_impressions'] ?? 0),
 			'max_clicks' => absint($data['max_clicks'] ?? 0),
+			'advertiser_user_id' => absint($data['advertiser_user_id'] ?? 0),
+			'advertiser_can_edit' => empty($data['advertiser_can_edit']) ? 0 : 1,
 			'updated_at' => $now,
 		);
 		$id = absint($data['id'] ?? 0);
@@ -61,6 +67,17 @@ final class Cotlas_Ads_Repository {
 		$row['created_at'] = $now;
 		$this->db->insert($this->ads, $row);
 		return (int) $this->db->insert_id;
+	}
+
+	public function update_advertiser_fields(int $id, array $data): void {
+		$this->db->update($this->ads, array(
+			'name' => sanitize_text_field($data['name'] ?? ''),
+			'target_url' => esc_url_raw($data['target_url'] ?? ''),
+			'status' => in_array($data['status'] ?? '', array('active', 'paused', 'draft'), true) ? $data['status'] : 'draft',
+			'start_at' => self::date_or_null($data['start_at'] ?? ''),
+			'end_at' => self::date_or_null($data['end_at'] ?? ''),
+			'updated_at' => current_time('mysql'),
+		), array('id' => $id));
 	}
 
 	public function zone_ids_for_ad(int $ad_id): array {

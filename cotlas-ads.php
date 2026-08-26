@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Cotlas Ads
  * Description: Lightweight, self-hosted advertising management for newsrooms.
- * Version: 0.3.11
+ * Version: 0.4.0
  * Requires at least: 6.2
  * Requires PHP: 8.0
  * Author: Cotlas
@@ -13,7 +13,7 @@
 
 defined('ABSPATH') || exit;
 
-define('COTLAS_ADS_VERSION', '0.3.11');
+define('COTLAS_ADS_VERSION', '0.4.0');
 define('COTLAS_ADS_FILE', __FILE__);
 define('COTLAS_ADS_DIR', plugin_dir_path(__FILE__));
 define('COTLAS_ADS_URL', plugin_dir_url(__FILE__));
@@ -22,6 +22,7 @@ require_once COTLAS_ADS_DIR . 'includes/class-cotlas-ads-install.php';
 require_once COTLAS_ADS_DIR . 'includes/class-cotlas-ads-repository.php';
 require_once COTLAS_ADS_DIR . 'includes/class-cotlas-ads-engine.php';
 require_once COTLAS_ADS_DIR . 'includes/class-cotlas-ads-tracker.php';
+require_once COTLAS_ADS_DIR . 'includes/class-cotlas-ads-notifications.php';
 require_once COTLAS_ADS_DIR . 'includes/class-cotlas-ads-admin.php';
 require_once COTLAS_ADS_DIR . 'includes/class-cotlas-ads-updater.php';
 
@@ -34,6 +35,7 @@ function cotlas_ads(): Cotlas_Ads_Engine {
 		$repository = new Cotlas_Ads_Repository();
 		$instance = new Cotlas_Ads_Engine($repository);
 		new Cotlas_Ads_Tracker($repository);
+		new Cotlas_Ads_Notifications($repository);
 		if (is_admin()) {
 			new Cotlas_Ads_Admin($repository);
 		}

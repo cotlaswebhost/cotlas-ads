@@ -7,7 +7,7 @@ final class Cotlas_Ads_Engine {
 
 	public function __construct(Cotlas_Ads_Repository $repository) {
 		$this->repository = $repository;
-		$this->settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('header_code' => '', 'injections' => array(), 'ad_label' => 'Advertisement', 'adblock_enabled' => 0, 'adblock_dismissible' => 1, 'adblock_title' => 'Please disable your ad blocker', 'adblock_message' => 'Advertising supports our newsroom. Please disable your ad blocker and reload this page to continue.', 'video_upload_enabled' => 0, 'video_max_mb' => 20));
+		$this->settings = wp_parse_args(get_option('cotlas_ads_settings', array()), array('header_code' => '', 'injections' => array(), 'ad_label' => 'Advertisement', 'adblock_enabled' => 0, 'adblock_dismissible' => 1, 'adblock_title' => 'Please disable your ad blocker', 'adblock_message' => 'Advertising supports our newsroom. Please disable your ad blocker and reload this page to continue.', 'video_upload_enabled' => 0, 'video_max_mb' => 20, 'ga4_adapter_enabled' => 0, 'matomo_adapter_enabled' => 0, 'ga4_impression_event' => 'ad_impression', 'ga4_click_event' => 'ad_click', 'matomo_category' => 'Advertising', 'asset_alias_enabled' => 1, 'asset_probe_alias' => 'site-runtime-check.js', 'asset_control_alias' => 'site-support-check.js'));
 		add_shortcode('cotlas_ad', array($this, 'shortcode'));
 		add_action('wp_head', array($this, 'header_code'), 99);
 		add_filter('the_content', array($this, 'inject_content'), 20);
@@ -15,11 +15,16 @@ final class Cotlas_Ads_Engine {
 		add_action('init', array($this, 'ads_txt_route'));
 		add_action('wp_enqueue_scripts', array($this, 'register_assets'));
 		add_action('wp_footer', array($this, 'adblock_markup'), 100);
+		add_action('template_redirect', array($this, 'serve_asset_alias'), 0);
 	}
 
 	public function register_assets(): void {
 		wp_register_style('cotlas-ads-front', COTLAS_ADS_URL . 'assets/frontend.css', array(), COTLAS_ADS_VERSION);
 		wp_register_script('cotlas-ads-front', COTLAS_ADS_URL . 'assets/frontend.js', array(), COTLAS_ADS_VERSION, true);
+		if (!empty($this->settings['ga4_adapter_enabled']) || !empty($this->settings['matomo_adapter_enabled'])) {
+			wp_enqueue_script('cotlas-ads-front');
+			wp_localize_script('cotlas-ads-front', 'cotlasAdsEvents', array('ga4' => !empty($this->settings['ga4_adapter_enabled']), 'matomo' => !empty($this->settings['matomo_adapter_enabled']), 'ga4Impression' => $this->settings['ga4_impression_event'], 'ga4Click' => $this->settings['ga4_click_event'], 'matomoCategory' => $this->settings['matomo_category']));
+		}
 		if (!empty($this->settings['adblock_enabled'])) {
 			wp_enqueue_style('cotlas-ads-front');
 			wp_enqueue_script('cotlas-ads-front');
@@ -124,14 +129,15 @@ final class Cotlas_Ads_Engine {
 		$frame_style = (int) $ad['canvas_height'] > 0 ? 'height:' . absint($ad['canvas_height']) . 'px;' : '';
 		$label = trim((string) $this->settings['ad_label']);
 		$label_html = $label !== '' ? '<div class="cotlas-ad-label">' . esc_html($label) . '</div>' : '';
-		return '<div class="cotlas-ad cotlas-type-' . esc_attr($ad['creative_type']) . '" style="' . esc_attr($outer_style) . '" data-cotlas-ad="' . absint($ad['id']) . '"><div class="cotlas-ad-frame" style="' . esc_attr($frame_style) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>' . $label_html . '</div>';
+		return '<div class="cotlas-ad cotlas-type-' . esc_attr($ad['creative_type']) . '" style="' . esc_attr($outer_style) . '" data-cotlas-ad="' . absint($ad['id']) . '" data-cotlas-zone="' . absint($zone_id) . '" data-cotlas-name="' . esc_attr($ad['name']) . '"><div class="cotlas-ad-frame" style="' . esc_attr($frame_style) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>' . $label_html . '</div>';
 	}
 
 	public function adblock_markup(): void {
 		if (empty($this->settings['adblock_enabled'])) return;
 		$dismissible = !empty($this->settings['adblock_dismissible']);
-		$probe_url = add_query_arg('ver', COTLAS_ADS_VERSION, COTLAS_ADS_URL . 'assets/advertisement.js');
-		$control_url = add_query_arg('ver', COTLAS_ADS_VERSION, COTLAS_ADS_URL . 'assets/support-check.js');
+		$aliased = !empty($this->settings['asset_alias_enabled']);
+		$probe_url = add_query_arg('ver', COTLAS_ADS_VERSION, $aliased ? home_url('/' . $this->settings['asset_probe_alias']) : COTLAS_ADS_URL . 'assets/advertisement.js');
+		$control_url = add_query_arg('ver', COTLAS_ADS_VERSION, $aliased ? home_url('/' . $this->settings['asset_control_alias']) : COTLAS_ADS_URL . 'assets/support-check.js');
 		?>
 		<div class="adsbox ad-banner advertisement pub_300x250 cotlas-block-test" aria-hidden="true">&nbsp;</div>
 		<div class="cotlas-support-overlay" data-cotlas-support-overlay data-dismissible="<?php echo $dismissible ? '1' : '0'; ?>" hidden>
@@ -179,6 +185,19 @@ final class Cotlas_Ads_Engine {
 		})();
 		</script>
 		<?php
+	}
+
+	public function serve_asset_alias(): void {
+		if (empty($this->settings['asset_alias_enabled'])) return;
+		$path = basename((string) wp_parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH));
+		$probe = trim((string) $this->settings['asset_probe_alias'], '/');
+		$control = trim((string) $this->settings['asset_control_alias'], '/');
+		if ($path !== $probe && $path !== $control) return;
+		$file = $path === $probe ? 'advertisement.js' : 'support-check.js';
+		$source = COTLAS_ADS_DIR . 'assets/' . $file;
+		if (!is_readable($source)) return;
+		nocache_headers(); header('Content-Type: application/javascript; charset=utf-8'); header('X-Content-Type-Options: nosniff');
+		readfile($source); exit; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile
 	}
 
 	private function weighted_pick(array $ads): array {

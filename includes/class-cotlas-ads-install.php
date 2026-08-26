@@ -14,6 +14,8 @@ final class Cotlas_Ads_Install {
 	public static function maybe_upgrade(): void {
 		if (get_option('cotlas_ads_version') !== COTLAS_ADS_VERSION) {
 			self::install_schema();
+			self::add_roles();
+			if (!wp_next_scheduled('cotlas_ads_daily_cleanup')) wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'cotlas_ads_daily_cleanup');
 		}
 	}
 
@@ -51,10 +53,13 @@ final class Cotlas_Ads_Install {
 			include_logged_in tinyint(1) NOT NULL DEFAULT 1,
 			max_impressions bigint unsigned NOT NULL DEFAULT 0,
 			max_clicks bigint unsigned NOT NULL DEFAULT 0,
+			advertiser_user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			advertiser_can_edit tinyint(1) NOT NULL DEFAULT 0,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
 			PRIMARY KEY  (id),
-			KEY status_dates (status,start_at,end_at)
+			KEY status_dates (status,start_at,end_at),
+			KEY advertiser_user_id (advertiser_user_id)
 		) {$charset};");
 
 		dbDelta("CREATE TABLE {$zones} (
@@ -100,6 +105,16 @@ final class Cotlas_Ads_Install {
 			'adblock_message' => 'Advertising supports our newsroom. Please disable your ad blocker and reload this page to continue.',
 			'video_upload_enabled' => 0,
 			'video_max_mb' => 20,
+			'ga4_adapter_enabled' => 0,
+			'matomo_adapter_enabled' => 0,
+			'ga4_impression_event' => 'ad_impression',
+			'ga4_click_event' => 'ad_click',
+			'matomo_category' => 'Advertising',
+			'advertiser_emails_enabled' => 0,
+			'advertiser_email_frequency' => 'weekly',
+			'asset_alias_enabled' => 1,
+			'asset_probe_alias' => 'site-runtime-check.js',
+			'asset_control_alias' => 'site-support-check.js',
 		));
 	}
 

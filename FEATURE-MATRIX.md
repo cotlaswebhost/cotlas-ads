@@ -2,7 +2,7 @@
 
 Cotlas Ads is an original implementation. It does not load or modify either AdRotate package.
 
-## Included in 0.3.11
+## Included in 0.4.0
 
 - Campaign and placement management
 - HTML/ad-tag and Media Library image creatives
@@ -35,24 +35,24 @@ Cotlas Ads is an original implementation. It does not load or modify either AdRo
 - `ads.txt` and trusted header snippets
 - JSON export/import
 - Granular WordPress capabilities and advertiser reporting role
+- Per-campaign advertiser assignment with isolated reporting, protected self-service delivery editing, and CSV export
+- Daily, weekly, or monthly advertiser summaries plus one-time expiry and cap alerts
+- Optional GA4 and Matomo adapters that use existing site trackers without loading third-party scripts
+- Configurable neutral first-party aliases for differential ad-block detection probes
 - Responsive, dependency-free administration UI
 - Automatic analytics retention cleanup
 
 ## Planned compatibility work
 
-These are not represented as complete in 0.3.11 and should be developed against explicit newsroom requirements rather than copied from a third-party implementation:
+These are not represented as complete in 0.4.0 and should be developed against explicit newsroom requirements rather than copied from a third-party implementation:
 
 - A migration wizard for AdRotate free database records
-- Dedicated advertiser self-service campaign editing and email notifications
 - HTML5 ZIP validation/extraction and asset sandboxing
-- Google Analytics and Matomo event adapters
 - MaxMind local database adapter and deny-list geo rules
 - Multi-schedule campaign editor
 - Budget pacing across a campaign window
-- CSV report export and scheduled email reports
 - Multisite network administration
 - REST API and WP-CLI commands
-- Adblock-resistant asset aliases
 - Accessibility and load testing on the target portal theme stack
 
 ## Clean-room boundary

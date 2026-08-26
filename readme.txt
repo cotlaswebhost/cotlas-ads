@@ -3,7 +3,7 @@ Contributors: cotlas
 Tags: advertising, ad manager, banner, newsroom
 Requires at least: 6.2
 Requires PHP: 8.0
-Stable tag: 0.3.11
+Stable tag: 0.4.0
 License: GPLv2 or later
 
 A lightweight, private advertising manager built for in-house news portals.
@@ -28,6 +28,9 @@ A lightweight, private advertising manager built for in-house news portals.
 * JSON backup and migration.
 * Updates from GitHub Releases.
 * Advertiser reporting role and separate WordPress capabilities.
+* Assigned advertiser portal with protected self-service editing, CSV reports, scheduled summaries, and delivery alerts.
+* Optional GA4 and Matomo event forwarding through trackers already present on the site.
+* Configurable neutral first-party aliases for ad-block detection probes.
 * No license service, telemetry, SaaS dependency, or remote update service.
 
 == Placement ==
