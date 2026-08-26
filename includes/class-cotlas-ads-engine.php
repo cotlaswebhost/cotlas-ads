@@ -130,7 +130,7 @@ final class Cotlas_Ads_Engine {
 				}
 			}
 		} elseif ($ad['creative_type'] === 'branded') {
-			$logo = $ad['brand_logo_id'] ? wp_get_attachment_image((int) $ad['brand_logo_id'], 'medium', false, array('class' => 'cotlas-brand-logo', 'alt' => '')) : '<span class="cotlas-brand-placeholder" aria-hidden="true">AD</span>';
+			$logo = $ad['brand_logo_id'] ? wp_get_attachment_image((int) $ad['brand_logo_id'], 'full', false, array('class' => 'cotlas-brand-logo', 'alt' => '')) : '<span class="cotlas-brand-placeholder" aria-hidden="true">AD</span>';
 			$background = $ad['background_image_id'] ? wp_get_attachment_image_url((int) $ad['background_image_id'], 'full') : '';
 			$background_style = $background ? 'background-image:linear-gradient(90deg,rgba(255,255,255,.9),rgba(255,255,255,.82)),url(' . esc_url($background) . ');background-position:center center;background-size:cover;background-repeat:no-repeat;' : '';
 			$button = $click_url && $ad['promo_button_text'] !== '' ? '<a class="cotlas-brand-button" href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . esc_html($ad['promo_button_text']) . '</a>' : '';

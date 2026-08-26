@@ -35,12 +35,14 @@ if (videoLimitInput && window.cotlasAdsAdmin) {
 	if (note) note.textContent = 'Default: 20 MB. Hard maximum: 50 MB. Your server may enforce a smaller request limit.';
 }
 
+const imagePreviewItem = (url, removeType, id = '') => `<span class="media-preview-item"${removeType === 'slider' ? ` data-slider-image-id="${id}"` : ''}><img src="${url}" alt=""><button type="button" class="media-remove" ${removeType === 'slider' ? `data-remove-slider-image="${id}"` : `data-remove-image="${removeType}"`} aria-label="Remove image">×</button></span>`;
+
 document.querySelector('[data-media-single]')?.addEventListener('click', () => {
   const frame = wp.media({ title: 'Select campaign image', button: { text: 'Use this image' }, multiple: false, library: { type: 'image' } });
   frame.on('select', () => {
     const image = frame.state().get('selection').first().toJSON();
     document.querySelector('[data-media-id]').value = image.id;
-    document.querySelector('[data-media-preview]').innerHTML = `<img src="${image.sizes?.medium?.url || image.url}" alt="">`;
+    document.querySelector('[data-media-preview]').innerHTML = imagePreviewItem(image.url, 'image_id');
   });
   frame.open();
 });
@@ -52,7 +54,7 @@ document.querySelectorAll('[data-pick-image]').forEach((button) => {
 	frame.on('select', () => {
 	  const image = frame.state().get('selection').first().toJSON();
 	  document.querySelector(`[data-image-field="${fieldName}"]`).value = image.id;
-	  document.querySelector(`[data-image-preview="${fieldName}"]`).innerHTML = `<img src="${image.sizes?.thumbnail?.url || image.url}" alt="">`;
+	  document.querySelector(`[data-image-preview="${fieldName}"]`).innerHTML = imagePreviewItem(image.url, fieldName);
 	});
 	frame.open();
   });
@@ -116,7 +118,7 @@ document.querySelector('[data-media-slider]')?.addEventListener('click', () => {
 	  return;
 	}
 		document.querySelector('[data-slider-ids]').value = images.map((image) => image.id).join(',');
-		document.querySelector('[data-slider-preview]').innerHTML = images.map((image) => `<img src="${image.sizes?.thumbnail?.url || image.url}" alt="">`).join('');
+		document.querySelector('[data-slider-preview]').innerHTML = images.map((image) => imagePreviewItem(image.sizes?.thumbnail?.url || image.url, 'slider', image.id)).join('');
 		updateCarouselCount(images.length);
 	});
 	frame.open();
@@ -132,6 +134,25 @@ if (carouselButton && carouselCount) {
 	carouselButton.closest('.media-button-row')?.after(carouselCount);
 	updateCarouselCount((document.querySelector('[data-slider-ids]')?.value || '').split(',').filter(Boolean).length);
 }
+
+document.addEventListener('click', (event) => {
+	const imageRemove = event.target.closest('[data-remove-image]');
+	if (imageRemove) {
+		const fieldName = imageRemove.dataset.removeImage;
+		const field = fieldName === 'image_id' ? document.querySelector('[data-media-id]') : document.querySelector(`[data-image-field="${fieldName}"]`);
+		if (field) field.value = '';
+		imageRemove.closest('.media-preview-item')?.remove();
+		return;
+	}
+	const sliderRemove = event.target.closest('[data-remove-slider-image]');
+	if (!sliderRemove) return;
+	const removedId = Number(sliderRemove.dataset.removeSliderImage);
+	const field = document.querySelector('[data-slider-ids]');
+	const ids = (field?.value || '').split(',').map(Number).filter((id) => id && id !== removedId);
+	if (field) field.value = ids.join(',');
+	sliderRemove.closest('.media-preview-item')?.remove();
+	updateCarouselCount(ids.length);
+});
 
 document.querySelector('[data-media-video]')?.addEventListener('click', () => {
 	if (!window.cotlasAdsAdmin?.videoEnabled) return;
