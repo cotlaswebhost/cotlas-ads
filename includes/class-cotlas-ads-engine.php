@@ -136,7 +136,7 @@ final class Cotlas_Ads_Engine {
 			$button = $click_url && $ad['promo_button_text'] !== '' ? '<a class="cotlas-brand-button" href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . esc_html($ad['promo_button_text']) . '</a>' : '';
 			$body = '<div class="cotlas-brand-card" style="' . esc_attr($background_style) . '"><div class="cotlas-brand-identity">' . $logo . '</div><div class="cotlas-brand-copy"><strong>' . esc_html($ad['promo_title']) . '</strong><span>' . esc_html($ad['promo_description']) . '</span></div><div class="cotlas-brand-actions">' . $button . '</div></div>';
 		}
-		if ($click_url && !in_array($ad['creative_type'], array('slider', 'video', 'branded'), true)) {
+		if ($click_url && $ad['creative_type'] === 'image') {
 			$body = '<a href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . $body . '</a>';
 		}
 		$pixel = add_query_arg(array('cotlas-ad-view' => (int) $ad['id'], 'zone' => $zone_id), home_url('/'));

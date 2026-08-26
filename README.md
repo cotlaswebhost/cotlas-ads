@@ -6,7 +6,7 @@ Lightweight, self-hosted advertising management for Cotlas news portals.
 
 1. Update the `Version` header and `COTLAS_ADS_VERSION` in `cotlas-ads.php`.
 2. Commit and push the changes to `main`.
-3. In GitHub, open **Releases**, choose **Draft a new release**, and create a matching version tag, for example `v0.5.4`.
+3. In GitHub, open **Releases**, choose **Draft a new release**, and create a matching version tag, for example `v0.5.5`.
 4. Create an installable `cotlas-ads.zip` whose top-level folder is `cotlas-ads`, attach it to the release, and publish the release manually.
 
 Installed client sites check `cotlaswebhost/cotlas-ads` GitHub Releases through WordPress's normal plugin updater. Release tags must be valid versions and newer than the installed plugin version.

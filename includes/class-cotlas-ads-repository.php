@@ -127,6 +127,9 @@ final class Cotlas_Ads_Repository {
 	public function save_zone(array $data): int {
 		$now = current_time('mysql');
 		$name = sanitize_text_field($data['name'] ?? '');
+		$placement_type = in_array($data['placement_type'] ?? '', array('standard', 'interstitial', 'sticky'), true) ? $data['placement_type'] : 'standard';
+		$sticky_height = ($data['max_height'] ?? '') === '' ? 90 : absint($data['max_height']);
+		$max_height = $placement_type === 'sticky' ? min(250, max(50, $sticky_height)) : 0;
 		$row = array(
 			'name' => $name,
 			'slug' => sanitize_title(!empty($data['slug']) ? $data['slug'] : $name),
@@ -136,10 +139,10 @@ final class Cotlas_Ads_Repository {
 			// Placement managers are trusted to store complete ad markup. Fallback
 			// creatives commonly include inline styles and third-party script tags.
 			'fallback' => current_user_can('cotlas_ads_manage') ? (string) ($data['fallback'] ?? '') : wp_kses_post($data['fallback'] ?? ''),
-			'placement_type' => in_array($data['placement_type'] ?? '', array('standard', 'interstitial', 'sticky'), true) ? $data['placement_type'] : 'standard',
+			'placement_type' => $placement_type,
 			'trigger_clicks' => min(100, max(1, absint($data['trigger_clicks'] ?? 3))),
 			'cooldown_minutes' => min(43200, max(0, absint($data['cooldown_minutes'] ?? 1440))),
-			'max_height' => min(250, max(50, absint($data['max_height'] ?? 90))),
+			'max_height' => $max_height,
 			'updated_at' => $now,
 		);
 		$id = absint($data['id'] ?? 0);
