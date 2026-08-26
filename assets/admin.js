@@ -65,17 +65,32 @@ const renumberInjectionRules = () => {
 	row.querySelectorAll('[name]').forEach((field) => { field.name = field.name.replace(/injection_rules\[\d+\]/, `injection_rules[${index}]`); });
   });
 };
+const injectionLocationLabels = {
+  before: 'Before post content', after: 'After post content', paragraph: 'After paragraph number', feed: 'Before archive/feed item number',
+  header: 'Visible header / after body opens', footer: 'Footer', sidebar_before: 'Before first sidebar widget', sidebar_after: 'After all sidebar widgets',
+};
+const refreshInjectionSummary = (row) => {
+  const zone = row.querySelector('[name$="[zone]"]');
+  const location = row.querySelector('[name$="[location]"]');
+  const number = row.querySelector('[name$="[number]"]');
+  row.querySelector('[data-rule-summary-zone]').textContent = zone?.selectedOptions?.[0]?.textContent || 'Disabled';
+  row.querySelector('[data-rule-summary-location]').textContent = injectionLocationLabels[location?.value] || location?.value || '';
+  row.querySelector('[data-rule-summary-target]').textContent = ['paragraph', 'feed'].includes(location?.value) ? `#${number?.value || 1}` : '—';
+};
 document.querySelector('[data-add-injection]')?.addEventListener('click', () => {
   const source = injectionRules?.querySelector('[data-injection-rule]:last-child');
   if (!source) return;
   const row = source.cloneNode(true);
   row.querySelectorAll('input').forEach((input) => { input.value = input.type === 'number' ? '2' : ''; });
   row.querySelectorAll('select').forEach((select) => { select.selectedIndex = 0; });
-  injectionRules.appendChild(row); renumberInjectionRules();
+  row.open = true;
+  injectionRules.appendChild(row); renumberInjectionRules(); refreshInjectionSummary(row);
 });
+injectionRules?.addEventListener('change', (event) => refreshInjectionSummary(event.target.closest('[data-injection-rule]')));
 document.addEventListener('click', (event) => {
   const remove = event.target.closest('[data-remove-injection]');
   if (!remove) return;
+  if (!window.confirm('Delete this injection? Save the rules to confirm the change.')) return;
   const rows = injectionRules?.querySelectorAll('[data-injection-rule]') || [];
   if (rows.length > 1) remove.closest('[data-injection-rule]').remove();
   else rows[0].querySelectorAll('input,select').forEach((field) => { if (field.tagName === 'SELECT') field.selectedIndex = 0; else field.value = ''; });

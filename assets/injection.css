@@ -1,0 +1,9 @@
+.cotlas-injection-head,.cotlas-injection-rule>summary{display:grid;grid-template-columns:minmax(160px,1.1fr) minmax(210px,1.5fr) 90px 120px;gap:16px;align-items:center}
+.cotlas-injection-head{margin-top:20px;padding:10px 16px;color:var(--ca-muted);font-size:11px;font-weight:750;letter-spacing:.07em;text-transform:uppercase}
+.cotlas-injection-rule{margin:0 0 10px;border:1px solid var(--ca-line);border-radius:10px;background:#fff;overflow:hidden}
+.cotlas-injection-rule>summary{position:relative;padding:14px 16px;cursor:pointer;font-weight:650;list-style:none}
+.cotlas-injection-rule>summary::-webkit-details-marker{display:none}
+.cotlas-injection-rule[open]>summary{border-bottom:1px solid var(--ca-line);background:#f8faf8}
+.cotlas-edit-injection{color:var(--ca-green);font-weight:750}
+.cotlas-injection-fields{padding:18px}
+@media(max-width:782px){.cotlas-injection-head{display:none}.cotlas-injection-rule>summary{grid-template-columns:1fr auto}.cotlas-injection-rule>summary span:nth-child(2),.cotlas-injection-rule>summary span:nth-child(3){display:none}}

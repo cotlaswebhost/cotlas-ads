@@ -134,7 +134,9 @@ final class Cotlas_Ads_Engine {
 			$background = $ad['background_image_id'] ? wp_get_attachment_image_url((int) $ad['background_image_id'], 'full') : '';
 			$background_style = $background ? 'background-image:linear-gradient(90deg,rgba(255,255,255,.9),rgba(255,255,255,.82)),url(' . esc_url($background) . ');' : '';
 			$button = $click_url && $ad['promo_button_text'] !== '' ? '<a class="cotlas-brand-button" href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . esc_html($ad['promo_button_text']) . '</a>' : '';
-			$body = '<div class="cotlas-brand-card" style="' . esc_attr($background_style) . '"><div class="cotlas-brand-identity">' . $logo . '</div><div class="cotlas-brand-copy"><strong>' . esc_html($ad['promo_title']) . '</strong><span>' . esc_html($ad['promo_description']) . '</span></div>' . $button . '</div>';
+			$size = absint($ad['canvas_width']) && absint($ad['canvas_height']) ? absint($ad['canvas_width']) . '×' . absint($ad['canvas_height']) : '';
+			$size_html = $size ? '<span class="cotlas-brand-size">' . esc_html($size) . '</span>' : '';
+			$body = '<div class="cotlas-brand-card" style="' . esc_attr($background_style) . '"><div class="cotlas-brand-identity">' . $logo . '</div><div class="cotlas-brand-copy"><strong>' . esc_html($ad['promo_title']) . '</strong><span>' . esc_html($ad['promo_description']) . '</span></div><div class="cotlas-brand-actions">' . $size_html . $button . '</div></div>';
 		}
 		if ($click_url && !in_array($ad['creative_type'], array('slider', 'video', 'branded'), true)) {
 			$body = '<a href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . $body . '</a>';
@@ -252,23 +254,29 @@ final class Cotlas_Ads_Engine {
 			$ad = $this->render_zone($rule['zone']);
 			if ($rule['location'] === 'before') $content = $ad . $content;
 			elseif ($rule['location'] === 'after') $content .= $ad;
-			else {
-				$parts = explode('</p>', $content); $at = min(max(1, absint($rule['number'])), count($parts)); array_splice($parts, $at, 0, $ad); $content = implode('</p>', $parts);
-			}
+			else $content = $this->inject_after_nonempty_paragraph($content, $ad, absint($rule['number']));
 		}
 		foreach ((array) ($this->settings['injections'] ?? array()) as $rule) {
 			if (empty($rule['zone']) || !in_array(get_post_type(), (array) ($rule['post_types'] ?? array('post')), true)) continue;
 			$ad = $this->render_zone($rule['zone']);
 			if (($rule['position'] ?? '') === 'before') $content = $ad . $content;
 			elseif (($rule['position'] ?? '') === 'after') $content .= $ad;
-			elseif (($rule['position'] ?? '') === 'paragraph') {
-				$parts = explode('</p>', $content);
-				$at = min(max(1, absint($rule['paragraph'] ?? 2)), count($parts));
-				array_splice($parts, $at, 0, $ad);
-				$content = implode('</p>', $parts);
-			}
+			elseif (($rule['position'] ?? '') === 'paragraph') $content = $this->inject_after_nonempty_paragraph($content, $ad, absint($rule['paragraph'] ?? 2));
 		}
 		return $content;
+	}
+
+	private function inject_after_nonempty_paragraph(string $content, string $ad, int $target): string {
+		$count = 0;
+		$target = max(1, $target);
+		$result = preg_replace_callback('/<p\b[^>]*>.*?<\/p>/is', function (array $match) use (&$count, $target, $ad): string {
+			$text = html_entity_decode(wp_strip_all_tags($match[0]), ENT_QUOTES | ENT_HTML5, get_bloginfo('charset') ?: 'UTF-8');
+			$text = preg_replace('/[\s\x{00A0}\x{200B}\x{FEFF}]+/u', '', $text);
+			$insert = false;
+			if ($text !== '') { $count++; $insert = $count === $target; }
+			return $match[0] . ($insert ? $ad : '');
+		}, $content);
+		return is_string($result) ? $result : $content;
 	}
 
 	private int $feed_counter = 0;

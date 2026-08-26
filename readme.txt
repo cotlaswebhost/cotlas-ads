@@ -3,7 +3,7 @@ Contributors: cotlas
 Tags: advertising, ad manager, banner, newsroom
 Requires at least: 6.2
 Requires PHP: 8.0
-Stable tag: 0.5.0
+Stable tag: 0.5.1
 License: GPLv2 or later
 
 A lightweight, private advertising manager built for in-house news portals.
