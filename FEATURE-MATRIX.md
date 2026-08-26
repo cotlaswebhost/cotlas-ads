@@ -2,7 +2,7 @@
 
 Cotlas Ads is an original implementation. It does not load or modify either AdRotate package.
 
-## Included in 0.5.3
+## Included in 0.5.4
 
 - Campaign and placement management
 - HTML/ad-tag and Media Library image creatives
