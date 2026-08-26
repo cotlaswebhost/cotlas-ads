@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Cotlas Ads
  * Description: Lightweight, self-hosted advertising management for newsrooms.
- * Version: 0.4.0
+ * Version: 0.4.1
  * Requires at least: 6.2
  * Requires PHP: 8.0
  * Author: Cotlas
@@ -13,7 +13,7 @@
 
 defined('ABSPATH') || exit;
 
-define('COTLAS_ADS_VERSION', '0.4.0');
+define('COTLAS_ADS_VERSION', '0.4.1');
 define('COTLAS_ADS_FILE', __FILE__);
 define('COTLAS_ADS_DIR', plugin_dir_path(__FILE__));
 define('COTLAS_ADS_URL', plugin_dir_url(__FILE__));
@@ -43,7 +43,8 @@ function cotlas_ads(): Cotlas_Ads_Engine {
 	return $instance;
 }
 add_action('plugins_loaded', 'cotlas_ads');
-add_action('plugins_loaded', array('Cotlas_Ads_Install', 'maybe_upgrade'), 5);
+// Schema and role upgrades may translate role labels, so run them at init or later.
+add_action('init', array('Cotlas_Ads_Install', 'maybe_upgrade'), 1);
 
 if (is_admin()) {
 	new Cotlas_Ads_Updater(COTLAS_ADS_FILE, 'cotlaswebhost/cotlas-ads');
