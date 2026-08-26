@@ -2,7 +2,7 @@
 
 Cotlas Ads is an original implementation. It does not load or modify either AdRotate package.
 
-## Included in 0.5.6
+## Included in 0.5.10
 
 - Campaign and placement management
 - HTML/ad-tag and Media Library image creatives
@@ -50,10 +50,14 @@ Cotlas Ads is an original implementation. It does not load or modify either AdRo
 - Removable image previews and original-file rendering for campaign images and branded logos
 - Transparent, viewport-centered interstitial presentation without nested HTML-creative links or internal popup scrolling
 - Two-signal ad-block confirmation that avoids false positives from theme CSS, lazy images, and delayed probe requests
+- Intentionally blockable ad probe paired with a neutral first-party control for proxy-safe detection
+- Placement interval changes immediately invalidate older interstitial and sticky visitor cooldowns
+- Per-placement suppression checks that warn when any served campaign or fallback is hidden
+- Neutral image and video creative selectors that avoid common cosmetic-filter signatures
 
 ## Planned compatibility work
 
-These are not represented as complete in 0.5.6 and should be developed against explicit newsroom requirements rather than copied from a third-party implementation:
+These are not represented as complete in 0.5.10 and should be developed against explicit newsroom requirements rather than copied from a third-party implementation:
 
 - A migration wizard for AdRotate free database records
 - HTML5 ZIP validation/extraction and asset sandboxing

@@ -43,15 +43,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const now = Date.now();
   document.querySelectorAll('[data-cotlas-sticky]').forEach((sticky) => {
-	const key = `cotlas_sticky_${sticky.dataset.zone}`;
+	const cooldownMinutes = Math.max(0, Number(sticky.dataset.cooldown || 0));
+	const key = `cotlas_sticky_${sticky.dataset.zone}_${cooldownMinutes}`;
 	if (Number(localStorage.getItem(key) || 0) <= now) sticky.hidden = false;
 	sticky.querySelector('.cotlas-overlay-close')?.addEventListener('click', () => {
-	  localStorage.setItem(key, String(Date.now() + Number(sticky.dataset.cooldown || 0) * 60000)); sticky.hidden = true;
+	  if (cooldownMinutes > 0) localStorage.setItem(key, String(Date.now() + cooldownMinutes * 60000));
+	  else localStorage.removeItem(key);
+	  sticky.hidden = true;
 	});
   });
   document.querySelectorAll('[data-cotlas-interstitial]').forEach((overlay) => {
 	const zone = overlay.dataset.zone;
-	const cooldownKey = `cotlas_interstitial_until_${zone}`;
+	const cooldownMinutes = Math.max(0, Number(overlay.dataset.cooldown || 0));
+	const cooldownKey = `cotlas_interstitial_until_${zone}_${cooldownMinutes}`;
 	const countKey = `cotlas_interstitial_clicks_${zone}`;
 	let pendingUrl = '';
 	document.addEventListener('click', (event) => {
@@ -66,7 +70,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	  event.preventDefault(); pendingUrl = destination.href; localStorage.setItem(countKey, '0'); overlay.hidden = false; document.documentElement.classList.add('cotlas-support-locked');
 	}, true);
 	overlay.querySelector('.cotlas-overlay-close')?.addEventListener('click', () => {
-	  localStorage.setItem(cooldownKey, String(Date.now() + Number(overlay.dataset.cooldown || 0) * 60000)); overlay.hidden = true; document.documentElement.classList.remove('cotlas-support-locked'); if (pendingUrl) window.location.href = pendingUrl;
+	  if (cooldownMinutes > 0) localStorage.setItem(cooldownKey, String(Date.now() + cooldownMinutes * 60000));
+	  else localStorage.removeItem(cooldownKey);
+	  overlay.hidden = true; document.documentElement.classList.remove('cotlas-support-locked'); if (pendingUrl) window.location.href = pendingUrl;
 	});
   });
 });

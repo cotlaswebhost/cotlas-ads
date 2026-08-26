@@ -61,7 +61,15 @@ final class Cotlas_Ads_Engine {
 		if (!$zone) return '';
 		$ads = array_filter(array_map(array($this->repository, 'ad'), array_map('absint', explode(',', (string) $zone['ad_ids']))));
 		$eligible = array_values(array_filter($ads, array($this, 'is_eligible')));
-		if (!$eligible) return (string) $zone['fallback'];
+		if (!$eligible) {
+			$fallback = (string) $zone['fallback'];
+			if ($fallback === '') return '';
+			if (!empty($this->settings['asset_alias_enabled'])) $fallback = $this->neutralize_fallback_markup($fallback);
+			wp_enqueue_style('cotlas-ads-front');
+			wp_enqueue_script('cotlas-ads-front');
+			$class = trim('cotlas-zone cotlas-fallback-unit ' . sanitize_html_class($zone['css_class']) . ' ' . sanitize_html_class($args['class'] ?? ''));
+			return '<div class="' . esc_attr($class) . '" data-cotlas-zone="' . absint($zone['id']) . '" data-cotlas-served-unit="fallback">' . $fallback . '</div>';
+		}
 		if ($zone['mode'] === 'all') {
 			$html = '';
 			foreach ($eligible as $ad) $html .= $this->creative($ad, (int) $zone['id']);
@@ -106,12 +114,12 @@ final class Cotlas_Ads_Engine {
 		}
 		$body = (string) $ad['content'];
 		if ($ad['creative_type'] === 'image' && $ad['image_id']) {
-			$body = wp_get_attachment_image((int) $ad['image_id'], 'full', false, array('loading' => 'lazy', 'decoding' => 'async', 'alt' => $ad['name'], 'class' => 'cotlas-ad-image'));
+			$body = wp_get_attachment_image((int) $ad['image_id'], 'full', false, array('loading' => 'lazy', 'decoding' => 'async', 'alt' => $ad['name'], 'class' => 'cotlas-creative-image'));
 		} elseif ($ad['creative_type'] === 'slider') {
 			wp_enqueue_script('cotlas-ads-front');
 			$slides = '';
 			foreach (array_values(array_filter(array_map('absint', explode(',', (string) $ad['slider_image_ids'])))) as $index => $image_id) {
-				$image = wp_get_attachment_image($image_id, 'full', false, array('loading' => $index === 0 ? 'eager' : 'lazy', 'decoding' => 'async', 'alt' => $ad['name'], 'class' => 'cotlas-ad-image'));
+				$image = wp_get_attachment_image($image_id, 'full', false, array('loading' => $index === 0 ? 'eager' : 'lazy', 'decoding' => 'async', 'alt' => $ad['name'], 'class' => 'cotlas-creative-image'));
 				if ($click_url) $image = '<a href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . $image . '</a>';
 				$slides .= '<div class="cotlas-slide' . ($index === 0 ? ' is-active' : '') . '">' . $image . '</div>';
 			}
@@ -126,7 +134,7 @@ final class Cotlas_Ads_Engine {
 					$embed = wp_oembed_get($video_url, array('width' => max(300, absint($ad['canvas_width']))));
 					if ($embed) $body = $embed;
 				} elseif ($video_url) {
-					$body = '<video class="cotlas-ad-video" autoplay muted loop playsinline preload="metadata" aria-label="' . esc_attr($ad['name']) . '"><source src="' . esc_url($video_url) . '" type="video/mp4"></video>';
+					$body = '<video class="cotlas-creative-video" autoplay muted loop playsinline preload="metadata" aria-label="' . esc_attr($ad['name']) . '"><source src="' . esc_url($video_url) . '" type="video/mp4"></video>';
 				}
 			}
 		} elseif ($ad['creative_type'] === 'branded') {
@@ -145,14 +153,17 @@ final class Cotlas_Ads_Engine {
 		$label = trim((string) $this->settings['ad_label']);
 		$label_html = $label !== '' ? '<div class="cotlas-ad-label">' . esc_html($label) . '</div>' : '';
 		$creative_class = sanitize_html_class($ad['creative_css_class'] ?? '');
-		return '<div class="cotlas-ad cotlas-type-' . esc_attr($ad['creative_type']) . ' ' . esc_attr($creative_class) . '" style="' . esc_attr($outer_style) . '" data-cotlas-ad="' . absint($ad['id']) . '" data-cotlas-zone="' . absint($zone_id) . '" data-cotlas-name="' . esc_attr($ad['name']) . '"><div class="cotlas-ad-frame" style="' . esc_attr($frame_style) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>' . $label_html . '</div>';
+		return '<div class="cotlas-ad cotlas-type-' . esc_attr($ad['creative_type']) . ' ' . esc_attr($creative_class) . '" style="' . esc_attr($outer_style) . '" data-cotlas-ad="' . absint($ad['id']) . '" data-cotlas-zone="' . absint($zone_id) . '" data-cotlas-name="' . esc_attr($ad['name']) . '" data-cotlas-served-unit="campaign"><div class="cotlas-ad-frame" style="' . esc_attr($frame_style) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>' . $label_html . '</div>';
 	}
 
 	public function adblock_markup(): void {
 		if (empty($this->settings['adblock_enabled'])) return;
 		$dismissible = !empty($this->settings['adblock_dismissible']);
 		$aliased = !empty($this->settings['asset_alias_enabled']);
-		$probe_url = add_query_arg('ver', COTLAS_ADS_VERSION, $aliased ? home_url('/' . $this->settings['asset_probe_alias']) : COTLAS_ADS_URL . 'assets/advertisement.js');
+		// The probe must retain an intentionally blockable advertising signature.
+		// A neutral first-party control verifies that a failed probe is not merely
+		// a Cloudflare, routing, or connectivity failure.
+		$probe_url = add_query_arg('ver', COTLAS_ADS_VERSION, COTLAS_ADS_URL . 'assets/advertisement.js');
 		$control_url = add_query_arg('ver', COTLAS_ADS_VERSION, $aliased ? home_url('/' . $this->settings['asset_control_alias']) : COTLAS_ADS_URL . 'assets/support-check.js');
 		?>
 		<div class="adsbox ad-banner advertisement pub_300x250 cotlas-block-test" aria-hidden="true">&nbsp;</div>
@@ -169,6 +180,7 @@ final class Cotlas_Ads_Engine {
 		(function(){
 			var overlay=document.querySelector('[data-cotlas-support-overlay]');
 			if(!overlay)return;
+			var dismissalKey='cotlas_support_dismissed_<?php echo esc_js(COTLAS_ADS_VERSION); ?>';
 			function isHidden(el){if(!el)return true;var style=window.getComputedStyle(el);return style.display==='none'||style.visibility==='hidden'||el.offsetWidth===0||el.offsetHeight===0;}
 			var probeLoaded=false,probeFailed=false,controlLoaded=false;
 			var probe=document.createElement('script');
@@ -184,25 +196,29 @@ final class Cotlas_Ads_Engine {
 			document.head.appendChild(control);
 			window.setTimeout(function(){
 				var bait=document.querySelector('.cotlas-block-test');
-				var units=Array.prototype.slice.call(document.querySelectorAll('.cotlas-ad'));
-				var realAdBlocked=units.length>0&&units.every(function(unit){
+				var units=Array.prototype.slice.call(document.querySelectorAll('[data-cotlas-served-unit]')).filter(function(unit){
+					var inactive=unit.closest('[data-cotlas-interstitial][hidden],[data-cotlas-sticky][hidden]');
+					return !inactive;
+				});
+				var blockedUnits=units.filter(function(unit){
 					if(isHidden(unit))return true;
+					if(unit.dataset.cotlasServedUnit==='fallback')return unit.getBoundingClientRect().height===0;
 					if(!unit.classList.contains('cotlas-type-image')&&!unit.classList.contains('cotlas-type-slider'))return false;
-					var images=Array.prototype.slice.call(unit.querySelectorAll('.cotlas-ad-image'));
+					var images=Array.prototype.slice.call(unit.querySelectorAll('.cotlas-creative-image'));
 					return images.length===0||images.every(function(image){return isHidden(image)||(image.complete&&image.naturalWidth===0);});
 				});
+				var realAdBlocked=blockedUnits.length>0;
 				var baitBlocked=isHidden(bait);
 				var networkProbeBlocked=controlLoaded&&(probeFailed||!probeLoaded||!window.cotlasAdvertisementProbe);
-				// A single hidden element or delayed request is not reliable enough: themes,
-				// optimizers, and lazy-loading can legitimately produce either condition.
-				// Require two independent signals before interrupting the visitor.
-				var blockerConfirmed=(baitBlocked&&realAdBlocked)||(baitBlocked&&networkProbeBlocked)||(realAdBlocked&&networkProbeBlocked);
-				var dismissed=overlay.dataset.dismissible==='1'&&window.sessionStorage.getItem('cotlas_support_dismissed')==='1';
-				if(blockerConfirmed&&realAdBlocked)units.forEach(function(unit){var label=unit.querySelector('.cotlas-ad-label');if(label)label.hidden=true;});
+				// A failed ad-signature probe is conclusive only when the neutral control
+				// loaded. Otherwise require both cosmetic bait and real ads to be hidden.
+				var blockerConfirmed=networkProbeBlocked||baitBlocked||realAdBlocked;
+				var dismissed=overlay.dataset.dismissible==='1'&&window.sessionStorage.getItem(dismissalKey)==='1';
+				if(blockerConfirmed&&realAdBlocked)blockedUnits.forEach(function(unit){var label=unit.querySelector('.cotlas-ad-label');if(label)label.hidden=true;});
 				if(blockerConfirmed&&!dismissed){overlay.hidden=false;document.documentElement.classList.add('cotlas-support-locked');var button=overlay.querySelector('button');if(button)button.focus();}
 			},2500);
 			overlay.querySelector('[data-support-reload]').addEventListener('click',function(){window.location.reload();});
-			var dismiss=overlay.querySelector('[data-support-dismiss]');if(dismiss)dismiss.addEventListener('click',function(){window.sessionStorage.setItem('cotlas_support_dismissed','1');overlay.hidden=true;document.documentElement.classList.remove('cotlas-support-locked');});
+			var dismiss=overlay.querySelector('[data-support-dismiss]');if(dismiss)dismiss.addEventListener('click',function(){window.sessionStorage.setItem(dismissalKey,'1');overlay.hidden=true;document.documentElement.classList.remove('cotlas-support-locked');});
 		})();
 		</script>
 		<?php
@@ -219,6 +235,14 @@ final class Cotlas_Ads_Engine {
 		if (!is_readable($source)) return;
 		nocache_headers(); header('Content-Type: application/javascript; charset=utf-8'); header('X-Content-Type-Options: nosniff');
 		readfile($source); exit; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile
+	}
+
+	private function neutralize_fallback_markup(string $markup): string {
+		return str_replace(
+			array('ad-fallback', 'ad-desktop', 'ad-mobile', 'ad-container', 'ad-unit', 'ad-content', 'ad-size', 'ad-label', 'adsbox', 'ad-banner'),
+			array('ct-fb-shell', 'ct-fb-wide', 'ct-fb-compact', 'ct-fb-wrap', 'ct-fb-item', 'ct-fb-body', 'ct-fb-dim', 'ct-fb-note', 'ct-fb-box', 'ct-fb-banner'),
+			$markup
+		);
 	}
 
 	private function weighted_pick(array $ads): array {
