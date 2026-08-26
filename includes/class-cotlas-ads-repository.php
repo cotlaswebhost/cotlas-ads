@@ -110,7 +110,9 @@ final class Cotlas_Ads_Repository {
 			'mode' => in_array($data['mode'] ?? '', array('weighted', 'random', 'all'), true) ? $data['mode'] : 'weighted',
 			'ad_ids' => implode(',', array_filter(array_map('absint', (array) ($data['ad_ids'] ?? array())))),
 			'css_class' => sanitize_html_class($data['css_class'] ?? ''),
-			'fallback' => wp_kses_post($data['fallback'] ?? ''),
+			// Placement managers are trusted to store complete ad markup. Fallback
+			// creatives commonly include inline styles and third-party script tags.
+			'fallback' => current_user_can('cotlas_ads_manage') ? (string) ($data['fallback'] ?? '') : wp_kses_post($data['fallback'] ?? ''),
 			'updated_at' => $now,
 		);
 		$id = absint($data['id'] ?? 0);

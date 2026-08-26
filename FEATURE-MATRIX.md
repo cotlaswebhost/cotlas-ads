@@ -2,10 +2,11 @@
 
 Cotlas Ads is an original implementation. It does not load or modify either AdRotate package.
 
-## Included in 0.3.10
+## Included in 0.3.11
 
 - Campaign and placement management
 - HTML/ad-tag and Media Library image creatives
+- Trusted placement fallback creatives with complete HTML, inline CSS, and JavaScript
 - Same-dimension, automatic right-to-left image carousel creatives with adjustable intervals
 - Persistent multi-image carousel editing with preloaded selections and explicit selection counts
 - Full-width placement wrappers that prevent flex themes from shrinking campaign canvases
@@ -39,7 +40,7 @@ Cotlas Ads is an original implementation. It does not load or modify either AdRo
 
 ## Planned compatibility work
 
-These are not represented as complete in 0.3.10 and should be developed against explicit newsroom requirements rather than copied from a third-party implementation:
+These are not represented as complete in 0.3.11 and should be developed against explicit newsroom requirements rather than copied from a third-party implementation:
 
 - A migration wizard for AdRotate free database records
 - Dedicated advertiser self-service campaign editing and email notifications
