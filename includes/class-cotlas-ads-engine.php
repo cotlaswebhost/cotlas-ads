@@ -191,10 +191,15 @@ final class Cotlas_Ads_Engine {
 					var images=Array.prototype.slice.call(unit.querySelectorAll('.cotlas-ad-image'));
 					return images.length===0||images.every(function(image){return isHidden(image)||(image.complete&&image.naturalWidth===0);});
 				});
+				var baitBlocked=isHidden(bait);
 				var networkProbeBlocked=controlLoaded&&(probeFailed||!probeLoaded||!window.cotlasAdvertisementProbe);
+				// A single hidden element or delayed request is not reliable enough: themes,
+				// optimizers, and lazy-loading can legitimately produce either condition.
+				// Require two independent signals before interrupting the visitor.
+				var blockerConfirmed=(baitBlocked&&realAdBlocked)||(baitBlocked&&networkProbeBlocked)||(realAdBlocked&&networkProbeBlocked);
 				var dismissed=overlay.dataset.dismissible==='1'&&window.sessionStorage.getItem('cotlas_support_dismissed')==='1';
-				if(realAdBlocked)units.forEach(function(unit){var label=unit.querySelector('.cotlas-ad-label');if(label)label.hidden=true;});
-				if((isHidden(bait)||realAdBlocked||networkProbeBlocked)&&!dismissed){overlay.hidden=false;document.documentElement.classList.add('cotlas-support-locked');var button=overlay.querySelector('button');if(button)button.focus();}
+				if(blockerConfirmed&&realAdBlocked)units.forEach(function(unit){var label=unit.querySelector('.cotlas-ad-label');if(label)label.hidden=true;});
+				if(blockerConfirmed&&!dismissed){overlay.hidden=false;document.documentElement.classList.add('cotlas-support-locked');var button=overlay.querySelector('button');if(button)button.focus();}
 			},2500);
 			overlay.querySelector('[data-support-reload]').addEventListener('click',function(){window.location.reload();});
 			var dismiss=overlay.querySelector('[data-support-dismiss]');if(dismiss)dismiss.addEventListener('click',function(){window.sessionStorage.setItem('cotlas_support_dismissed','1');overlay.hidden=true;document.documentElement.classList.remove('cotlas-support-locked');});
