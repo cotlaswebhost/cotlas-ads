@@ -38,6 +38,12 @@ final class Cotlas_Ads_Install {
 			video_source varchar(20) NOT NULL DEFAULT 'upload',
 			video_url text NULL,
 			video_embed longtext NULL,
+			brand_logo_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			background_image_id bigint(20) unsigned NOT NULL DEFAULT 0,
+			promo_title varchar(255) NOT NULL DEFAULT '',
+			promo_description text NULL,
+			promo_button_text varchar(100) NOT NULL DEFAULT '',
+			creative_css_class varchar(190) NOT NULL DEFAULT '',
 			slider_image_ids text NULL,
 			target_url text NULL,
 			canvas_width smallint unsigned NOT NULL DEFAULT 0,
@@ -70,6 +76,10 @@ final class Cotlas_Ads_Install {
 			ad_ids text NULL,
 			css_class varchar(190) NOT NULL DEFAULT '',
 			fallback longtext NULL,
+			placement_type varchar(20) NOT NULL DEFAULT 'standard',
+			trigger_clicks smallint unsigned NOT NULL DEFAULT 3,
+			cooldown_minutes int unsigned NOT NULL DEFAULT 1440,
+			max_height smallint unsigned NOT NULL DEFAULT 90,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
 			PRIMARY KEY  (id),
@@ -115,6 +125,7 @@ final class Cotlas_Ads_Install {
 			'asset_alias_enabled' => 1,
 			'asset_probe_alias' => 'site-runtime-check.js',
 			'asset_control_alias' => 'site-support-check.js',
+			'injection_rules' => array(),
 		));
 	}
 

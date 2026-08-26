@@ -15,12 +15,21 @@ final class Cotlas_Ads_Engine {
 		add_action('init', array($this, 'ads_txt_route'));
 		add_action('wp_enqueue_scripts', array($this, 'register_assets'));
 		add_action('wp_footer', array($this, 'adblock_markup'), 100);
+		add_action('wp_body_open', array($this, 'inject_header'));
+		add_action('wp_footer', array($this, 'inject_footer'), 20);
+		add_action('wp_footer', array($this, 'overlay_placements'), 30);
+		add_action('loop_start', array($this, 'reset_feed_counter'));
+		add_action('the_post', array($this, 'inject_feed_item'));
+		add_filter('dynamic_sidebar_params', array($this, 'inject_sidebar_before'));
+		add_action('dynamic_sidebar_after', array($this, 'inject_sidebar_after'));
 		add_action('template_redirect', array($this, 'serve_asset_alias'), 0);
 	}
 
 	public function register_assets(): void {
 		wp_register_style('cotlas-ads-front', COTLAS_ADS_URL . 'assets/frontend.css', array(), COTLAS_ADS_VERSION);
 		wp_register_script('cotlas-ads-front', COTLAS_ADS_URL . 'assets/frontend.js', array(), COTLAS_ADS_VERSION, true);
+		$has_overlay = (bool) array_filter($this->repository->zones(), fn($zone) => in_array($zone['placement_type'] ?? 'standard', array('interstitial', 'sticky'), true));
+		if ($has_overlay) { wp_enqueue_style('cotlas-ads-front'); wp_enqueue_script('cotlas-ads-front'); }
 		if (!empty($this->settings['ga4_adapter_enabled']) || !empty($this->settings['matomo_adapter_enabled'])) {
 			wp_enqueue_script('cotlas-ads-front');
 			wp_localize_script('cotlas-ads-front', 'cotlasAdsEvents', array('ga4' => !empty($this->settings['ga4_adapter_enabled']), 'matomo' => !empty($this->settings['matomo_adapter_enabled']), 'ga4Impression' => $this->settings['ga4_impression_event'], 'ga4Click' => $this->settings['ga4_click_event'], 'matomoCategory' => $this->settings['matomo_category']));
@@ -120,8 +129,14 @@ final class Cotlas_Ads_Engine {
 					$body = '<video class="cotlas-ad-video" autoplay muted loop playsinline preload="metadata" aria-label="' . esc_attr($ad['name']) . '"><source src="' . esc_url($video_url) . '" type="video/mp4"></video>';
 				}
 			}
+		} elseif ($ad['creative_type'] === 'branded') {
+			$logo = $ad['brand_logo_id'] ? wp_get_attachment_image((int) $ad['brand_logo_id'], 'medium', false, array('class' => 'cotlas-brand-logo', 'alt' => '')) : '<span class="cotlas-brand-placeholder" aria-hidden="true">AD</span>';
+			$background = $ad['background_image_id'] ? wp_get_attachment_image_url((int) $ad['background_image_id'], 'full') : '';
+			$background_style = $background ? 'background-image:linear-gradient(90deg,rgba(255,255,255,.9),rgba(255,255,255,.82)),url(' . esc_url($background) . ');' : '';
+			$button = $click_url && $ad['promo_button_text'] !== '' ? '<a class="cotlas-brand-button" href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . esc_html($ad['promo_button_text']) . '</a>' : '';
+			$body = '<div class="cotlas-brand-card" style="' . esc_attr($background_style) . '"><div class="cotlas-brand-identity">' . $logo . '</div><div class="cotlas-brand-copy"><strong>' . esc_html($ad['promo_title']) . '</strong><span>' . esc_html($ad['promo_description']) . '</span></div>' . $button . '</div>';
 		}
-		if ($click_url && !in_array($ad['creative_type'], array('slider', 'video'), true)) {
+		if ($click_url && !in_array($ad['creative_type'], array('slider', 'video', 'branded'), true)) {
 			$body = '<a href="' . esc_url($click_url) . '" rel="sponsored noopener" target="_blank">' . $body . '</a>';
 		}
 		$pixel = add_query_arg(array('cotlas-ad-view' => (int) $ad['id'], 'zone' => $zone_id), home_url('/'));
@@ -129,7 +144,8 @@ final class Cotlas_Ads_Engine {
 		$frame_style = (int) $ad['canvas_height'] > 0 ? 'height:' . absint($ad['canvas_height']) . 'px;' : '';
 		$label = trim((string) $this->settings['ad_label']);
 		$label_html = $label !== '' ? '<div class="cotlas-ad-label">' . esc_html($label) . '</div>' : '';
-		return '<div class="cotlas-ad cotlas-type-' . esc_attr($ad['creative_type']) . '" style="' . esc_attr($outer_style) . '" data-cotlas-ad="' . absint($ad['id']) . '" data-cotlas-zone="' . absint($zone_id) . '" data-cotlas-name="' . esc_attr($ad['name']) . '"><div class="cotlas-ad-frame" style="' . esc_attr($frame_style) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>' . $label_html . '</div>';
+		$creative_class = sanitize_html_class($ad['creative_css_class'] ?? '');
+		return '<div class="cotlas-ad cotlas-type-' . esc_attr($ad['creative_type']) . ' ' . esc_attr($creative_class) . '" style="' . esc_attr($outer_style) . '" data-cotlas-ad="' . absint($ad['id']) . '" data-cotlas-zone="' . absint($zone_id) . '" data-cotlas-name="' . esc_attr($ad['name']) . '"><div class="cotlas-ad-frame" style="' . esc_attr($frame_style) . '">' . $body . '<img src="' . esc_url($pixel) . '" width="1" height="1" alt="" loading="eager" class="cotlas-pixel" /></div>' . $label_html . '</div>';
 	}
 
 	public function adblock_markup(): void {
@@ -231,6 +247,15 @@ final class Cotlas_Ads_Engine {
 
 	public function inject_content(string $content): string {
 		if (!is_singular() || !is_main_query() || !in_the_loop()) return $content;
+		foreach ($this->injection_rules() as $rule) {
+			if (!in_array($rule['location'], array('before', 'after', 'paragraph'), true) || !in_array(get_post_type(), $rule['post_types'], true)) continue;
+			$ad = $this->render_zone($rule['zone']);
+			if ($rule['location'] === 'before') $content = $ad . $content;
+			elseif ($rule['location'] === 'after') $content .= $ad;
+			else {
+				$parts = explode('</p>', $content); $at = min(max(1, absint($rule['number'])), count($parts)); array_splice($parts, $at, 0, $ad); $content = implode('</p>', $parts);
+			}
+		}
 		foreach ((array) ($this->settings['injections'] ?? array()) as $rule) {
 			if (empty($rule['zone']) || !in_array(get_post_type(), (array) ($rule['post_types'] ?? array('post')), true)) continue;
 			$ad = $this->render_zone($rule['zone']);
@@ -244,6 +269,34 @@ final class Cotlas_Ads_Engine {
 			}
 		}
 		return $content;
+	}
+
+	private int $feed_counter = 0;
+	private array $sidebar_started = array();
+
+	private function injection_rules(): array { return array_values((array) ($this->settings['injection_rules'] ?? array())); }
+
+	public function inject_header(): void { foreach ($this->injection_rules() as $rule) if (($rule['location'] ?? '') === 'header') echo $this->render_zone($rule['zone']); /* phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped */ }
+	public function inject_footer(): void { foreach ($this->injection_rules() as $rule) if (($rule['location'] ?? '') === 'footer') echo $this->render_zone($rule['zone']); /* phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped */ }
+	public function reset_feed_counter($query): void { if ($query instanceof WP_Query && $query->is_main_query() && !$query->is_singular()) $this->feed_counter = 0; }
+	public function inject_feed_item($post): void {
+		global $wp_query; if (!$wp_query || !$wp_query->is_main_query() || $wp_query->is_singular()) return; $this->feed_counter++;
+		foreach ($this->injection_rules() as $rule) if (($rule['location'] ?? '') === 'feed' && $this->feed_counter === absint($rule['number'] ?? 2)) echo $this->render_zone($rule['zone']); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	}
+	public function inject_sidebar_before(array $params): array {
+		$sidebar = sanitize_key($params[0]['id'] ?? ''); if (isset($this->sidebar_started[$sidebar])) return $params; $this->sidebar_started[$sidebar] = true;
+		foreach ($this->injection_rules() as $rule) if (($rule['location'] ?? '') === 'sidebar_before' && (empty($rule['sidebar_id']) || $rule['sidebar_id'] === $sidebar)) echo $this->render_zone($rule['zone']); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		return $params;
+	}
+	public function inject_sidebar_after(string $sidebar): void { $sidebar = sanitize_key($sidebar); foreach ($this->injection_rules() as $rule) if (($rule['location'] ?? '') === 'sidebar_after' && (empty($rule['sidebar_id']) || $rule['sidebar_id'] === $sidebar)) echo $this->render_zone($rule['zone']); /* phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped */ }
+
+	public function overlay_placements(): void {
+		foreach ($this->repository->zones() as $zone) {
+			$type = $zone['placement_type'] ?? 'standard'; if (!in_array($type, array('interstitial', 'sticky'), true)) continue;
+			$html = $this->render_zone((int) $zone['id']); if ($html === '') continue;
+			if ($type === 'interstitial') echo '<div class="cotlas-interstitial" data-cotlas-interstitial data-zone="' . absint($zone['id']) . '" data-clicks="' . absint($zone['trigger_clicks']) . '" data-cooldown="' . absint($zone['cooldown_minutes']) . '" hidden><div class="cotlas-overlay-ad"><button type="button" class="cotlas-overlay-close" aria-label="Close advertisement">×</button>' . $html . '</div></div>';
+			else echo '<div class="cotlas-sticky-ad" data-cotlas-sticky data-zone="' . absint($zone['id']) . '" data-cooldown="' . absint($zone['cooldown_minutes']) . '" style="--cotlas-sticky-height:' . absint($zone['max_height']) . 'px" hidden><button type="button" class="cotlas-overlay-close" aria-label="Close advertisement">×</button>' . $html . '</div>';
+		}
 	}
 
 	public function ads_txt_route(): void {

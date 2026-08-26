@@ -3,7 +3,7 @@ Contributors: cotlas
 Tags: advertising, ad manager, banner, newsroom
 Requires at least: 6.2
 Requires PHP: 8.0
-Stable tag: 0.4.1
+Stable tag: 0.5.0
 License: GPLv2 or later
 
 A lightweight, private advertising manager built for in-house news portals.
@@ -31,12 +31,20 @@ A lightweight, private advertising manager built for in-house news portals.
 * Assigned advertiser portal with protected self-service editing, CSV reports, scheduled summaries, and delivery alerts.
 * Optional GA4 and Matomo event forwarding through trackers already present on the site.
 * Configurable neutral first-party aliases for ad-block detection probes.
+* Multiple automatic injection rules for post content, paragraphs, archives/feeds, visible headers, footers, and sidebars.
+* Responsive branded-card creatives with a logo, background, title, description, call-to-action, and custom CSS class.
+* Automatic full-page interstitial placements triggered after a configurable number of link clicks.
+* Closable bottom-sticky placements with configurable visitor cooldown and height limits.
 * No license service, telemetry, SaaS dependency, or remote update service.
 
 == Placement ==
 
 Use `[cotlas_ad zone="homepage-leaderboard"]` or `<?php echo cotlas_ad_zone('homepage-leaderboard'); ?>`.
 For one campaign use `[cotlas_ad id="123"]` or `<?php echo cotlas_ad(123); ?>`.
+
+Use the Injection tab to create multiple independent automatic rules. The visible-header location renders after the theme opens `<body>`; visible ad markup is not inserted into the document `<head>`.
+
+Interstitial and sticky placement types render automatically. Their trigger, close cooldown, and sticky maximum height are configured in the placement editor. A maximum height of 90px is recommended for sticky banners.
 
 == Privacy ==
 

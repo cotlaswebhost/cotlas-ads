@@ -40,4 +40,33 @@ document.addEventListener('DOMContentLoaded', () => {
 	  emit('click', unit);
 	}, { capture: true });
   });
+
+  const now = Date.now();
+  document.querySelectorAll('[data-cotlas-sticky]').forEach((sticky) => {
+	const key = `cotlas_sticky_${sticky.dataset.zone}`;
+	if (Number(localStorage.getItem(key) || 0) <= now) sticky.hidden = false;
+	sticky.querySelector('.cotlas-overlay-close')?.addEventListener('click', () => {
+	  localStorage.setItem(key, String(Date.now() + Number(sticky.dataset.cooldown || 0) * 60000)); sticky.hidden = true;
+	});
+  });
+  document.querySelectorAll('[data-cotlas-interstitial]').forEach((overlay) => {
+	const zone = overlay.dataset.zone;
+	const cooldownKey = `cotlas_interstitial_until_${zone}`;
+	const countKey = `cotlas_interstitial_clicks_${zone}`;
+	let pendingUrl = '';
+	document.addEventListener('click', (event) => {
+	  const link = event.target.closest('a[href]');
+	  if (!link || link.closest('[data-cotlas-interstitial],[data-cotlas-sticky],[data-cotlas-support-overlay],#wpadminbar') || link.hasAttribute('download') || link.target === '_blank' || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+	  const destination = new URL(link.href, window.location.href);
+	  if (!['http:', 'https:'].includes(destination.protocol) || (destination.pathname === window.location.pathname && destination.search === window.location.search && destination.hash)) return;
+	  if (Number(localStorage.getItem(cooldownKey) || 0) > Date.now()) return;
+	  const count = Number(localStorage.getItem(countKey) || 0) + 1;
+	  localStorage.setItem(countKey, String(count));
+	  if (count < Math.max(1, Number(overlay.dataset.clicks || 3))) return;
+	  event.preventDefault(); pendingUrl = destination.href; localStorage.setItem(countKey, '0'); overlay.hidden = false; document.documentElement.classList.add('cotlas-support-locked');
+	}, true);
+	overlay.querySelector('.cotlas-overlay-close')?.addEventListener('click', () => {
+	  localStorage.setItem(cooldownKey, String(Date.now() + Number(overlay.dataset.cooldown || 0) * 60000)); overlay.hidden = true; document.documentElement.classList.remove('cotlas-support-locked'); if (pendingUrl) window.location.href = pendingUrl;
+	});
+  });
 });

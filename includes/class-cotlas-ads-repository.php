@@ -33,13 +33,19 @@ final class Cotlas_Ads_Repository {
 		$row = array(
 			'name' => sanitize_text_field($data['name'] ?? ''),
 			'status' => in_array($data['status'] ?? '', array('active', 'paused', 'draft'), true) ? $data['status'] : 'draft',
-			'creative_type' => in_array($data['creative_type'] ?? '', array('html', 'image', 'slider', 'video'), true) ? $data['creative_type'] : 'html',
+			'creative_type' => in_array($data['creative_type'] ?? '', array('html', 'image', 'slider', 'video', 'branded'), true) ? $data['creative_type'] : 'html',
 			'content' => current_user_can('unfiltered_html') ? (string) ($data['content'] ?? '') : wp_kses_post($data['content'] ?? ''),
 			'image_id' => absint($data['image_id'] ?? 0),
 			'video_id' => absint($data['video_id'] ?? 0),
 			'video_source' => in_array($data['video_source'] ?? '', array('upload', 'url', 'embed'), true) ? $data['video_source'] : 'upload',
 			'video_url' => esc_url_raw($data['video_url'] ?? ''),
 			'video_embed' => current_user_can('unfiltered_html') ? (string) ($data['video_embed'] ?? '') : wp_kses_post($data['video_embed'] ?? ''),
+			'brand_logo_id' => absint($data['brand_logo_id'] ?? 0),
+			'background_image_id' => absint($data['background_image_id'] ?? 0),
+			'promo_title' => sanitize_text_field($data['promo_title'] ?? ''),
+			'promo_description' => sanitize_textarea_field($data['promo_description'] ?? ''),
+			'promo_button_text' => sanitize_text_field($data['promo_button_text'] ?? ''),
+			'creative_css_class' => sanitize_html_class($data['creative_css_class'] ?? ''),
 			'slider_image_ids' => implode(',', array_filter(array_map('absint', explode(',', (string) ($data['slider_image_ids'] ?? ''))))),
 			'target_url' => esc_url_raw($data['target_url'] ?? ''),
 			'canvas_width' => min(4096, absint($data['canvas_width'] ?? 0)),
@@ -130,6 +136,10 @@ final class Cotlas_Ads_Repository {
 			// Placement managers are trusted to store complete ad markup. Fallback
 			// creatives commonly include inline styles and third-party script tags.
 			'fallback' => current_user_can('cotlas_ads_manage') ? (string) ($data['fallback'] ?? '') : wp_kses_post($data['fallback'] ?? ''),
+			'placement_type' => in_array($data['placement_type'] ?? '', array('standard', 'interstitial', 'sticky'), true) ? $data['placement_type'] : 'standard',
+			'trigger_clicks' => min(100, max(1, absint($data['trigger_clicks'] ?? 3))),
+			'cooldown_minutes' => min(43200, max(0, absint($data['cooldown_minutes'] ?? 1440))),
+			'max_height' => min(250, max(50, absint($data['max_height'] ?? 90))),
 			'updated_at' => $now,
 		);
 		$id = absint($data['id'] ?? 0);

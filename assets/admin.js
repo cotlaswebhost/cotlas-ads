@@ -45,6 +45,43 @@ document.querySelector('[data-media-single]')?.addEventListener('click', () => {
   frame.open();
 });
 
+document.querySelectorAll('[data-pick-image]').forEach((button) => {
+  button.addEventListener('click', () => {
+	const fieldName = button.dataset.pickImage;
+	const frame = wp.media({ title: 'Select image', button: { text: 'Use this image' }, multiple: false, library: { type: 'image' } });
+	frame.on('select', () => {
+	  const image = frame.state().get('selection').first().toJSON();
+	  document.querySelector(`[data-image-field="${fieldName}"]`).value = image.id;
+	  document.querySelector(`[data-image-preview="${fieldName}"]`).innerHTML = `<img src="${image.sizes?.thumbnail?.url || image.url}" alt="">`;
+	});
+	frame.open();
+  });
+});
+
+const injectionRules = document.querySelector('[data-injection-rules]');
+const renumberInjectionRules = () => {
+  if (!injectionRules) return;
+  [...injectionRules.querySelectorAll('[data-injection-rule]')].forEach((row, index) => {
+	row.querySelectorAll('[name]').forEach((field) => { field.name = field.name.replace(/injection_rules\[\d+\]/, `injection_rules[${index}]`); });
+  });
+};
+document.querySelector('[data-add-injection]')?.addEventListener('click', () => {
+  const source = injectionRules?.querySelector('[data-injection-rule]:last-child');
+  if (!source) return;
+  const row = source.cloneNode(true);
+  row.querySelectorAll('input').forEach((input) => { input.value = input.type === 'number' ? '2' : ''; });
+  row.querySelectorAll('select').forEach((select) => { select.selectedIndex = 0; });
+  injectionRules.appendChild(row); renumberInjectionRules();
+});
+document.addEventListener('click', (event) => {
+  const remove = event.target.closest('[data-remove-injection]');
+  if (!remove) return;
+  const rows = injectionRules?.querySelectorAll('[data-injection-rule]') || [];
+  if (rows.length > 1) remove.closest('[data-injection-rule]').remove();
+  else rows[0].querySelectorAll('input,select').forEach((field) => { if (field.tagName === 'SELECT') field.selectedIndex = 0; else field.value = ''; });
+  renumberInjectionRules();
+});
+
 document.querySelector('[data-media-slider]')?.addEventListener('click', () => {
 	const frame = wp.media({ title: 'Select carousel images of the same size', button: { text: 'Use selected images' }, multiple: 'add', library: { type: 'image' } });
 	const storedIds = (document.querySelector('[data-slider-ids]')?.value || '').split(',').map(Number).filter(Boolean);
