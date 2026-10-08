@@ -1,0 +1,1 @@
+window.cotlasSupportControlProbe = true;
