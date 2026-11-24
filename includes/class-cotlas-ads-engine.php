@@ -277,14 +277,16 @@ final class Cotlas_Ads_Engine {
 	public function inject_content(string $content): string {
 		if (!is_singular() || !is_main_query() || !in_the_loop()) return $content;
 		foreach ($this->injection_rules() as $rule) {
-			if (!in_array($rule['location'], array('before', 'after', 'paragraph'), true) || !in_array(get_post_type(), $rule['post_types'], true)) continue;
+			if (!is_array($rule) || empty($rule['location']) || empty($rule['zone'])) continue;
+			$post_types = isset($rule['post_types']) && is_array($rule['post_types']) ? $rule['post_types'] : array('post');
+			if (!in_array($rule['location'], array('before', 'after', 'paragraph'), true) || !in_array(get_post_type(), $post_types, true)) continue;
 			$ad = $this->render_zone($rule['zone']);
 			if ($rule['location'] === 'before') $content = $ad . $content;
 			elseif ($rule['location'] === 'after') $content .= $ad;
-			else $content = $this->inject_after_nonempty_paragraph($content, $ad, absint($rule['number']));
+			else $content = $this->inject_after_nonempty_paragraph($content, $ad, absint($rule['number'] ?? 2));
 		}
 		foreach ((array) ($this->settings['injections'] ?? array()) as $rule) {
-			if (empty($rule['zone']) || !in_array(get_post_type(), (array) ($rule['post_types'] ?? array('post')), true)) continue;
+			if (!is_array($rule) || empty($rule['zone']) || !in_array(get_post_type(), (array) ($rule['post_types'] ?? array('post')), true)) continue;
 			$ad = $this->render_zone($rule['zone']);
 			if (($rule['position'] ?? '') === 'before') $content = $ad . $content;
 			elseif (($rule['position'] ?? '') === 'after') $content .= $ad;
@@ -309,7 +311,17 @@ final class Cotlas_Ads_Engine {
 	private int $feed_counter = 0;
 	private array $sidebar_started = array();
 
-	private function injection_rules(): array { return array_values((array) ($this->settings['injection_rules'] ?? array())); }
+	private function injection_rules(): array {
+		$rules = $this->settings['injection_rules'] ?? array();
+		if (!is_array($rules)) return array();
+		if (isset($rules['zone']) || isset($rules['location'])) $rules = array($rules);
+		$normalized = array();
+		foreach ($rules as $rule) {
+			if (!is_array($rule)) continue;
+			$normalized[] = wp_parse_args($rule, array('zone' => '', 'location' => 'paragraph', 'number' => 2, 'post_types' => array('post'), 'sidebar_id' => ''));
+		}
+		return $normalized;
+	}
 
 	public function inject_header(): void { foreach ($this->injection_rules() as $rule) if (($rule['location'] ?? '') === 'header') echo $this->render_zone($rule['zone']); /* phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped */ }
 	public function inject_footer(): void { foreach ($this->injection_rules() as $rule) if (($rule['location'] ?? '') === 'footer') echo $this->render_zone($rule['zone']); /* phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped */ }
