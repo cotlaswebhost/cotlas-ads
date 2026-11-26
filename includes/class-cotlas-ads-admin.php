@@ -10,8 +10,11 @@ final class Cotlas_Ads_Admin {
 		add_action('admin_enqueue_scripts', array($this, 'assets'));
 		add_action('admin_post_cotlas_save_ad', array($this, 'save_ad'));
 		add_action('admin_post_cotlas_delete_ad', array($this, 'delete_ad'));
+		add_action('admin_post_cotlas_delete_all_ads', array($this, 'delete_all_ads'));
 		add_action('admin_post_cotlas_save_zone', array($this, 'save_zone'));
 		add_action('admin_post_cotlas_delete_zone', array($this, 'delete_zone'));
+		add_action('admin_post_cotlas_delete_all_zones', array($this, 'delete_all_zones'));
+		add_action('admin_post_cotlas_reset_plugin', array($this, 'reset_plugin'));
 		add_action('admin_post_cotlas_save_settings', array($this, 'save_settings'));
 		add_action('admin_post_cotlas_save_injections', array($this, 'save_injections'));
 		add_action('admin_post_cotlas_export', array($this, 'export'));
@@ -100,8 +103,10 @@ final class Cotlas_Ads_Admin {
 			$this->ad_form($id ? $this->repository->ad($id) : null);
 			return;
 		}
-		echo '<section class="cotlas-card"><div class="card-title"><div><h2>Campaigns</h2><p class="muted">Campaigns and their 30-day delivery totals.</p></div></div>';
-		$this->campaign_table($this->repository->ads(), true);
+		$ads = $this->repository->ads();
+		$delete_all = $ads ? '<a class="button button-link-delete" data-confirm="Delete ALL campaigns and their analytics? This cannot be undone." href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=cotlas_delete_all_ads'), 'cotlas_delete_all_ads')) . '">Delete all campaigns</a>' : '';
+		echo '<section class="cotlas-card"><div class="card-title"><div><h2>Campaigns</h2><p class="muted">Campaigns and their 30-day delivery totals.</p></div>' . $delete_all . '</div>';
+		$this->campaign_table($ads, true);
 		echo '</section>';
 	}
 
@@ -164,8 +169,10 @@ final class Cotlas_Ads_Admin {
 		$id = absint($_GET['id'] ?? 0); $zone = $id ? $this->repository->zone($id) : null;
 		$zone = wp_parse_args($zone ?: array(), array('id' => 0, 'name' => '', 'slug' => '', 'mode' => 'weighted', 'ad_ids' => '', 'css_class' => '', 'fallback' => '', 'placement_type' => 'standard', 'trigger_clicks' => 3, 'cooldown_minutes' => 1440, 'max_height' => 90));
 		$selected = array_map('absint', explode(',', $zone['ad_ids']));
+		$zones_list = $this->repository->zones();
+		$delete_all_zones = $zones_list ? '<a class="button button-link-delete" data-confirm="Delete ALL placements? Injection rules that reference them will also be cleared. This cannot be undone." href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=cotlas_delete_all_zones'), 'cotlas_delete_all_zones')) . '">Delete all placements</a>' : '';
 		?>
-		<div class="cotlas-grid"><section class="cotlas-card"><h2>Placements</h2><?php foreach ($this->repository->zones() as $item): ?><div class="zone-row"><div><b><?php echo esc_html($item['name']); ?></b><code>[cotlas_ad zone="<?php echo esc_attr($item['slug']); ?>"]</code></div><div><a href="<?php echo esc_url($this->url('zones', array('id' => $item['id']))); ?>">Edit</a> <a class="danger" data-confirm="Delete this placement?" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=cotlas_delete_zone&id=' . absint($item['id'])), 'cotlas_delete_zone_' . absint($item['id']))); ?>">Delete</a></div></div><?php endforeach; ?></section>
+		<div class="cotlas-grid"><section class="cotlas-card"><div class="card-title"><h2>Placements</h2><?php echo $delete_all_zones; ?></div><?php foreach ($zones_list as $item): ?><div class="zone-row"><div><b><?php echo esc_html($item['name']); ?></b><code>[cotlas_ad zone="<?php echo esc_attr($item['slug']); ?>"]</code></div><div><a href="<?php echo esc_url($this->url('zones', array('id' => $item['id']))); ?>">Edit</a> <a class="danger" data-confirm="Delete this placement?" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=cotlas_delete_zone&id=' . absint($item['id'])), 'cotlas_delete_zone_' . absint($item['id']))); ?>">Delete</a></div></div><?php endforeach; ?></section>
 		<form class="cotlas-card" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><?php wp_nonce_field('cotlas_save_zone'); ?><input type="hidden" name="action" value="cotlas_save_zone"><input type="hidden" name="id" value="<?php echo absint($zone['id']); ?>"><h2><?php echo $zone['id'] ? 'Edit placement' : 'New placement'; ?></h2>
 		<label>Name<input required name="name" value="<?php echo esc_attr($zone['name']); ?>"><small>A dashboard label for this reusable ad location.</small></label><?php if ($zone['id']): ?><label>Slug<input readonly name="slug" value="<?php echo esc_attr($zone['slug']); ?>"><small>Generated automatically when the placement was created. It is locked so existing shortcodes do not break.</small></label><?php else: ?><input type="hidden" name="slug" value=""><p class="muted"><b>Slug:</b> Generated automatically from the placement name when saved.</p><?php endif; ?><label>Placement type<select name="placement_type"><option value="standard" <?php selected($zone['placement_type'], 'standard'); ?>>Standard / injection</option><option value="interstitial" <?php selected($zone['placement_type'], 'interstitial'); ?>>Full-page interstitial</option><option value="sticky" <?php selected($zone['placement_type'], 'sticky'); ?>>Fixed bottom sticky</option></select><small>Interstitial and sticky placements are rendered automatically and include close controls.</small></label><div class="field-row"><label>Show interstitial after link clicks<input type="number" min="1" max="100" name="trigger_clicks" value="<?php echo absint($zone['trigger_clicks']); ?>"><small>Used only for interstitial placements.</small></label><label>Closed-ad interval (minutes)<input type="number" min="0" max="43200" name="cooldown_minutes" value="<?php echo absint($zone['cooldown_minutes']); ?>"><small>After closing, hide this interstitial or sticky placement for this long.</small></label></div><label>Sticky maximum height (px)<input type="number" min="50" max="250" name="max_height" value="<?php echo ($zone['placement_type'] ?? 'standard') === 'sticky' ? absint($zone['max_height']) : ''; ?>" placeholder="90"><small>Used only for sticky banners and remains empty for other placement types. A 90px banner is strongly recommended.</small></label><label>Delivery<select name="mode"><option value="weighted" <?php selected($zone['mode'], 'weighted'); ?>>Weighted rotation</option><option value="random" <?php selected($zone['mode'], 'random'); ?>>Equal random</option><option value="all" <?php selected($zone['mode'], 'all'); ?>>Show all</option></select><small>Weighted uses campaign weights; random gives equal chances; show all prints every eligible campaign.</small></label>
 		<fieldset><legend>Campaigns</legend><small>Only eligible selected campaigns can display here. Search and select multiple campaigns.</small><?php $this->multi_select('ad_ids', $this->repository->ads(), $selected, 'Search campaigns…'); ?></fieldset><label>CSS class<input name="css_class" value="<?php echo esc_attr($zone['css_class']); ?>"><small>Optional class added to the placement wrapper for theme-specific styling.</small></label><label>Fallback HTML<textarea name="fallback" rows="8" placeholder="Paste HTML, inline CSS, or trusted JavaScript"><?php echo esc_textarea($zone['fallback']); ?></textarea><small>Displayed only when every assigned campaign is ineligible. Complete HTML, <code>&lt;style&gt;</code>, and <code>&lt;script&gt;</code> markup is accepted; scripts execute on the public site, so paste code only from sources you trust.</small></label><button class="cotlas-primary">Save placement</button></form></div>
@@ -179,15 +186,17 @@ final class Cotlas_Ads_Admin {
 
 	private function injection_page(): void {
 		$settings = get_option('cotlas_ads_settings', array());
-		$rules = array_values((array) ($settings['injection_rules'] ?? array()));
-		if (!$rules && !empty($settings['injections'])) {
-			foreach ((array) $settings['injections'] as $legacy) {
+		$stored = isset($settings['injection_rules']) && is_array($settings['injection_rules']) ? $settings['injection_rules'] : array();
+		if (isset($stored['zone']) || isset($stored['location'])) $stored = array($stored);
+		$rules = array_values(array_filter($stored, 'is_array'));
+		if (!$rules && !empty($settings['injections']) && is_array($settings['injections'])) {
+			foreach ($settings['injections'] as $legacy) {
+				if (!is_array($legacy)) continue;
 				$rules[] = array('zone' => $legacy['zone'] ?? '', 'location' => $legacy['position'] ?? 'paragraph', 'number' => $legacy['paragraph'] ?? 2, 'post_types' => $legacy['post_types'] ?? array('post'), 'sidebar_id' => '');
 			}
 		}
-		if (!$rules) $rules[] = array();
 		$zones = array_values(array_filter($this->repository->zones(), fn($zone) => ($zone['placement_type'] ?? 'standard') === 'standard'));
-		?><form class="cotlas-card" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><?php wp_nonce_field('cotlas_save_injections'); ?><input type="hidden" name="action" value="cotlas_save_injections"><div class="card-title"><div><h2>Automatic placement injection</h2><p class="muted">Create as many independent rules as needed. Saved rules remain collapsed until you edit them.</p></div><button type="button" class="button" data-add-injection>Add injection</button></div><div class="cotlas-injection-head" aria-hidden="true"><span>Placement</span><span>Location</span><span>Target</span><span>Action</span></div><div data-injection-rules><?php foreach ($rules as $index => $rule) $this->injection_rule_row($index, $rule, $zones); ?></div><button class="cotlas-primary">Save injection rules</button></form><?php
+		?><form class="cotlas-card" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><?php wp_nonce_field('cotlas_save_injections'); ?><input type="hidden" name="action" value="cotlas_save_injections"><div class="card-title"><div><h2>Automatic placement injection</h2><p class="muted">Create as many independent rules as needed. Saved rules remain collapsed until you edit them.</p></div><button type="button" class="button" data-add-injection>Add injection</button></div><div class="cotlas-injection-head" aria-hidden="true"><span>Placement</span><span>Location</span><span>Target</span><span>Action</span></div><div data-injection-rules><?php foreach ($rules as $index => $rule) $this->injection_rule_row($index, $rule, $zones); ?></div><p class="muted" data-injection-empty <?php echo $rules ? 'hidden' : ''; ?>>No injection rules yet. Choose &ldquo;Add injection&rdquo; to create your first rule.</p><button class="cotlas-primary">Save injection rules</button></form><template data-injection-template><?php $this->injection_rule_row(0, array(), $zones); ?></template><?php
 	}
 
 	private function injection_rule_row(int $index, array $rule, array $zones): void {
@@ -200,16 +209,27 @@ final class Cotlas_Ads_Admin {
 
 	public function save_injections(): void {
 		$this->guard('cotlas_ads_injection', 'cotlas_save_injections');
+		$rules = $this->sanitize_injection_rules($_POST['injection_rules'] ?? array());
+		$settings = get_option('cotlas_ads_settings', array()); $settings['injection_rules'] = $rules; $settings['injections'] = array(); update_option('cotlas_ads_settings', $settings, false); $this->redirect('injection');
+	}
+
+	private function sanitize_injection_rules($raw): array {
+		if (!is_array($raw)) return array();
+		if (isset($raw['zone']) || isset($raw['location'])) $raw = array($raw);
 		$rules = array();
-		foreach ((array) ($_POST['injection_rules'] ?? array()) as $rule) {
+		foreach ($raw as $rule) {
+			if (!is_array($rule)) continue;
 			$zone = sanitize_title(wp_unslash($rule['zone'] ?? ''));
 			if ($zone === '') continue;
 			$location = sanitize_key($rule['location'] ?? 'paragraph');
 			if (!in_array($location, array('before', 'after', 'paragraph', 'feed', 'header', 'footer', 'sidebar_before', 'sidebar_after'), true)) continue;
-			$post_types = array_values(array_filter(array_map('sanitize_key', explode(',', wp_unslash($rule['post_types'] ?? 'post')))));
+			$post_types_raw = $rule['post_types'] ?? 'post';
+			$post_types = is_array($post_types_raw)
+				? array_values(array_filter(array_map('sanitize_key', $post_types_raw)))
+				: array_values(array_filter(array_map('sanitize_key', explode(',', wp_unslash((string) $post_types_raw)))));
 			$rules[] = array('zone' => $zone, 'location' => $location, 'number' => min(100, max(1, absint($rule['number'] ?? 2))), 'post_types' => $post_types ?: array('post'), 'sidebar_id' => sanitize_key(wp_unslash($rule['sidebar_id'] ?? '')));
 		}
-		$settings = get_option('cotlas_ads_settings', array()); $settings['injection_rules'] = $rules; $settings['injections'] = array(); update_option('cotlas_ads_settings', $settings, false); $this->redirect('injection');
+		return $rules;
 	}
 
 	private function advertiser_page(): void {
@@ -253,7 +273,7 @@ final class Cotlas_Ads_Admin {
 	private function settings_page(): void {
 		$s = wp_parse_args(get_option('cotlas_ads_settings', array()), array('track_impressions' => 1, 'track_clicks' => 1, 'retention_days' => 365, 'bot_filter' => 1, 'header_code' => '', 'ads_txt' => '', 'injections' => array(), 'ad_label' => 'Advertisement', 'adblock_enabled' => 0, 'adblock_dismissible' => 1, 'adblock_title' => 'Please disable your ad blocker', 'adblock_message' => 'Advertising supports our newsroom. Please disable your ad blocker and reload this page to continue.', 'video_upload_enabled' => 0, 'video_max_mb' => 20, 'ga4_adapter_enabled' => 0, 'matomo_adapter_enabled' => 0, 'ga4_impression_event' => 'ad_impression', 'ga4_click_event' => 'ad_click', 'matomo_category' => 'Advertising', 'advertiser_emails_enabled' => 0, 'advertiser_email_frequency' => 'weekly', 'asset_alias_enabled' => 1, 'asset_probe_alias' => 'site-runtime-check.js', 'asset_control_alias' => 'site-support-check.js'));
 		?><form class="cotlas-grid" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><?php wp_nonce_field('cotlas_save_settings'); ?><input type="hidden" name="action" value="cotlas_save_settings"><section class="cotlas-card"><h2>Tracking & privacy</h2><label class="check"><input type="checkbox" name="track_impressions" value="1" <?php checked($s['track_impressions']); ?>> Track impressions</label><small>Counts a view when the campaign tracking pixel loads.</small><label class="check"><input type="checkbox" name="track_clicks" value="1" <?php checked($s['track_clicks']); ?>> Track clicks</label><small>Routes linked campaign clicks through a secure first-party counter.</small><label class="check"><input type="checkbox" name="bot_filter" value="1" <?php checked($s['bot_filter']); ?>> Ignore known crawlers</label><small>Prevents common bots and link preview tools from inflating totals.</small><label>Retention days<input type="number" min="1" max="3650" name="retention_days" value="<?php echo absint($s['retention_days']); ?>"><small>Hourly analytics older than this are deleted automatically.</small></label><h2>Automatic injection</h2><p class="muted">Multiple post, paragraph, feed, header, footer, and sidebar rules now live in the dedicated Injection module.</p><a class="button" href="<?php echo esc_url($this->url('injection')); ?>">Manage injection rules</a></section>
-		<section class="cotlas-card"><h2>Advertisement display</h2><label>Advertisement label<input name="ad_label" value="<?php echo esc_attr($s['ad_label']); ?>" placeholder="Advertisement"><small>Displayed directly below every served campaign. Leave blank to hide the label.</small></label><h2>Video creatives</h2><label class="check"><input type="checkbox" name="video_upload_enabled" value="1" <?php checked($s['video_upload_enabled']); ?>> Enable MP4 video creatives</label><small>Permits MP4 uploads only through the Cotlas Ads campaign editor—not in posts or the normal Media Library.</small><label>Maximum video upload size (MB)<input type="number" min="1" max="50" name="video_max_mb" value="<?php echo absint(min(50, max(1, $s['video_max_mb']))); ?>"><small>Hard maximum: 50 MB. Your server may enforce a smaller limit.</small></label><h2>Advertiser emails</h2><label class="check"><input type="checkbox" name="advertiser_emails_enabled" value="1" <?php checked($s['advertiser_emails_enabled']); ?>> Send advertiser reports and delivery alerts</label><small>Sends assigned advertisers periodic 30-day summaries plus one-time expiry and cap alerts.</small><label>Report frequency<select name="advertiser_email_frequency"><option value="daily" <?php selected($s['advertiser_email_frequency'], 'daily'); ?>>Daily</option><option value="weekly" <?php selected($s['advertiser_email_frequency'], 'weekly'); ?>>Weekly</option><option value="monthly" <?php selected($s['advertiser_email_frequency'], 'monthly'); ?>>Monthly</option></select></label><h2>Analytics adapters</h2><label class="check"><input type="checkbox" name="ga4_adapter_enabled" value="1" <?php checked($s['ga4_adapter_enabled']); ?>> Forward events to an existing GA4 tag</label><small>Uses the page’s existing <code>gtag()</code>; Cotlas Ads does not load Google Analytics.</small><label>GA4 impression event<input name="ga4_impression_event" value="<?php echo esc_attr($s['ga4_impression_event']); ?>"></label><label>GA4 click event<input name="ga4_click_event" value="<?php echo esc_attr($s['ga4_click_event']); ?>"></label><label class="check"><input type="checkbox" name="matomo_adapter_enabled" value="1" <?php checked($s['matomo_adapter_enabled']); ?>> Forward events to an existing Matomo tracker</label><small>Uses the page’s existing <code>_paq</code> queue; Cotlas Ads does not load Matomo.</small><label>Matomo event category<input name="matomo_category" value="<?php echo esc_attr($s['matomo_category']); ?>"></label><h2>Ad blocker notice</h2><label class="check"><input type="checkbox" name="adblock_enabled" value="1" <?php checked($s['adblock_enabled']); ?>> Detect browser ad blockers</label><small>Shows a full-screen request when a common ad-blocking rule hides the local detection element.</small><label class="check"><input type="checkbox" name="adblock_dismissible" value="1" <?php checked($s['adblock_dismissible']); ?>> Allow visitors to dismiss the notice</label><small>When disabled, visitors must disable their blocker and reload before reading the site. Test carefully to avoid accidental lockouts.</small><label>Popup title<input name="adblock_title" value="<?php echo esc_attr($s['adblock_title']); ?>"></label><label>Popup message<textarea name="adblock_message" rows="4"><?php echo esc_textarea($s['adblock_message']); ?></textarea></label><label class="check"><input type="checkbox" name="asset_alias_enabled" value="1" <?php checked($s['asset_alias_enabled']); ?>> Serve detection probes through neutral first-party aliases</label><small>Avoids obvious advertising filenames while retaining the control/probe comparison.</small><label>Probe alias<input name="asset_probe_alias" value="<?php echo esc_attr($s['asset_probe_alias']); ?>" placeholder="site-runtime-check.js"></label><label>Control alias<input name="asset_control_alias" value="<?php echo esc_attr($s['asset_control_alias']); ?>" placeholder="site-support-check.js"></label><h2>Publisher integrations</h2><label>ads.txt<textarea name="ads_txt" rows="8" placeholder="google.com, pub-..., DIRECT, ..."><?php echo esc_textarea($s['ads_txt']); ?></textarea></label><label>Header snippets<textarea name="header_code" rows="8" placeholder="Verification meta tags or network scripts"><?php echo esc_textarea($s['header_code']); ?></textarea><small>Only trusted administrators should edit this field.</small></label><button class="cotlas-primary">Save settings</button></section></form><?php
+		<section class="cotlas-card"><h2>Advertisement display</h2><label>Advertisement label<input name="ad_label" value="<?php echo esc_attr($s['ad_label']); ?>" placeholder="Advertisement"><small>Displayed directly below every served campaign. Leave blank to hide the label.</small></label><h2>Video creatives</h2><label class="check"><input type="checkbox" name="video_upload_enabled" value="1" <?php checked($s['video_upload_enabled']); ?>> Enable MP4 video creatives</label><small>Permits MP4 uploads only through the Cotlas Ads campaign editor—not in posts or the normal Media Library.</small><label>Maximum video upload size (MB)<input type="number" min="1" max="50" name="video_max_mb" value="<?php echo absint(min(50, max(1, $s['video_max_mb']))); ?>"><small>Hard maximum: 50 MB. Your server may enforce a smaller limit.</small></label><h2>Advertiser emails</h2><label class="check"><input type="checkbox" name="advertiser_emails_enabled" value="1" <?php checked($s['advertiser_emails_enabled']); ?>> Send advertiser reports and delivery alerts</label><small>Sends assigned advertisers periodic 30-day summaries plus one-time expiry and cap alerts.</small><label>Report frequency<select name="advertiser_email_frequency"><option value="daily" <?php selected($s['advertiser_email_frequency'], 'daily'); ?>>Daily</option><option value="weekly" <?php selected($s['advertiser_email_frequency'], 'weekly'); ?>>Weekly</option><option value="monthly" <?php selected($s['advertiser_email_frequency'], 'monthly'); ?>>Monthly</option></select></label><h2>Analytics adapters</h2><label class="check"><input type="checkbox" name="ga4_adapter_enabled" value="1" <?php checked($s['ga4_adapter_enabled']); ?>> Forward events to an existing GA4 tag</label><small>Uses the page’s existing <code>gtag()</code>; Cotlas Ads does not load Google Analytics.</small><label>GA4 impression event<input name="ga4_impression_event" value="<?php echo esc_attr($s['ga4_impression_event']); ?>"></label><label>GA4 click event<input name="ga4_click_event" value="<?php echo esc_attr($s['ga4_click_event']); ?>"></label><label class="check"><input type="checkbox" name="matomo_adapter_enabled" value="1" <?php checked($s['matomo_adapter_enabled']); ?>> Forward events to an existing Matomo tracker</label><small>Uses the page’s existing <code>_paq</code> queue; Cotlas Ads does not load Matomo.</small><label>Matomo event category<input name="matomo_category" value="<?php echo esc_attr($s['matomo_category']); ?>"></label><h2>Ad blocker notice</h2><label class="check"><input type="checkbox" name="adblock_enabled" value="1" <?php checked($s['adblock_enabled']); ?>> Detect browser ad blockers</label><small>Shows a full-screen request when a common ad-blocking rule hides the local detection element.</small><label class="check"><input type="checkbox" name="adblock_dismissible" value="1" <?php checked($s['adblock_dismissible']); ?>> Allow visitors to dismiss the notice</label><small>When disabled, visitors must disable their blocker and reload before reading the site. Test carefully to avoid accidental lockouts.</small><label>Popup title<input name="adblock_title" value="<?php echo esc_attr($s['adblock_title']); ?>"></label><label>Popup message<textarea name="adblock_message" rows="4"><?php echo esc_textarea($s['adblock_message']); ?></textarea></label><label class="check"><input type="checkbox" name="asset_alias_enabled" value="1" <?php checked($s['asset_alias_enabled']); ?>> Serve detection probes through neutral first-party aliases</label><small>Avoids obvious advertising filenames while retaining the control/probe comparison.</small><label>Probe alias<input name="asset_probe_alias" value="<?php echo esc_attr($s['asset_probe_alias']); ?>" placeholder="site-runtime-check.js"></label><label>Control alias<input name="asset_control_alias" value="<?php echo esc_attr($s['asset_control_alias']); ?>" placeholder="site-support-check.js"></label><h2>Publisher integrations</h2><label>ads.txt<textarea name="ads_txt" rows="8" placeholder="google.com, pub-..., DIRECT, ..."><?php echo esc_textarea($s['ads_txt']); ?></textarea></label><label>Header snippets<textarea name="header_code" rows="8" placeholder="Verification meta tags or network scripts"><?php echo esc_textarea($s['header_code']); ?></textarea><small>Only trusted administrators should edit this field.</small></label><button class="cotlas-primary">Save settings</button></section></form><?php if (current_user_can('cotlas_ads_manage')): ?><section class="cotlas-card"><h2>Reset plugin</h2><p class="muted">Deletes all campaigns, placements, analytics, settings, and role changes, then rebuilds the default fresh-install state. Use this before importing another site&rsquo;s package. This cannot be undone.</p><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"><?php wp_nonce_field('cotlas_reset_plugin'); ?><input type="hidden" name="action" value="cotlas_reset_plugin"><button class="button button-link-delete" type="submit" data-confirm="Reset Cotlas Ads to a fresh installation? All campaigns, placements, analytics, settings, and role changes will be permanently deleted.">Reset plugin to fresh install</button></form></section><?php endif; ?><?php
 	}
 
 	private function tools_page(): void { ?>
@@ -368,6 +388,15 @@ final class Cotlas_Ads_Admin {
 	public function delete_ad(): void { $id = absint($_GET['id'] ?? 0); $this->guard('cotlas_ads_campaigns', 'cotlas_delete_ad_' . $id, '_wpnonce', 'get'); $this->repository->delete_ad($id); $this->redirect('ads'); }
 	public function save_zone(): void { $this->guard('cotlas_ads_zones', 'cotlas_save_zone'); $this->repository->save_zone(wp_unslash($_POST)); $this->redirect('zones'); }
 	public function delete_zone(): void { $id = absint($_GET['id'] ?? 0); $this->guard('cotlas_ads_zones', 'cotlas_delete_zone_' . $id, '_wpnonce', 'get'); $this->repository->delete_zone($id); $this->redirect('zones'); }
+	public function delete_all_ads(): void { $this->guard('cotlas_ads_campaigns', 'cotlas_delete_all_ads', '_wpnonce', 'get'); $this->repository->delete_all_ads(); $this->redirect('ads'); }
+	public function delete_all_zones(): void {
+		$this->guard('cotlas_ads_zones', 'cotlas_delete_all_zones', '_wpnonce', 'get');
+		$this->repository->delete_all_zones();
+		$settings = get_option('cotlas_ads_settings', array());
+		if (is_array($settings)) { $settings['injection_rules'] = array(); $settings['injections'] = array(); update_option('cotlas_ads_settings', $settings, false); }
+		$this->redirect('zones');
+	}
+	public function reset_plugin(): void { $this->guard('cotlas_ads_manage', 'cotlas_reset_plugin'); Cotlas_Ads_Install::reset(); $this->redirect('settings'); }
 	public function save_settings(): void {
 		$this->guard('cotlas_ads_settings', 'cotlas_save_settings');
 		$existing_settings = get_option('cotlas_ads_settings', array());
@@ -384,7 +413,7 @@ final class Cotlas_Ads_Admin {
 		$settings['asset_probe_alias'] = $this->asset_alias($_POST['asset_probe_alias'] ?? '', 'site-runtime-check.js');
 		$settings['asset_control_alias'] = $this->asset_alias($_POST['asset_control_alias'] ?? '', 'site-support-check.js');
 		if ($settings['asset_probe_alias'] === $settings['asset_control_alias']) $settings['asset_control_alias'] = 'site-support-check.js';
-		$settings['injection_rules'] = (array) ($existing_settings['injection_rules'] ?? array());
+		$settings['injection_rules'] = $this->sanitize_injection_rules($existing_settings['injection_rules'] ?? array());
 		update_option('cotlas_ads_settings', $settings, false); $this->redirect('settings');
 	}
 
@@ -446,9 +475,53 @@ final class Cotlas_Ads_Admin {
 		if (!isset($_FILES['package']['tmp_name']) || !is_uploaded_file($_FILES['package']['tmp_name'])) wp_die('Missing import file.');
 		$data = json_decode((string) file_get_contents($_FILES['package']['tmp_name']), true);
 		if (!is_array($data) || ($data['format'] ?? '') !== 'cotlas-ads') wp_die('Invalid Cotlas Ads package.');
-		$map = array(); foreach ((array) ($data['ads'] ?? array()) as $ad) { $old = absint($ad['id'] ?? 0); unset($ad['id']); $map[$old] = $this->repository->save_ad($ad); }
-		foreach ((array) ($data['zones'] ?? array()) as $zone) { unset($zone['id']); $zone['ad_ids'] = array_map(fn($id) => $map[absint($id)] ?? 0, explode(',', (string) ($zone['ad_ids'] ?? ''))); $this->repository->save_zone($zone); }
+		$map = array();
+		foreach ((array) ($data['ads'] ?? array()) as $ad) {
+			if (!is_array($ad)) continue;
+			$old = absint($ad['id'] ?? 0);
+			unset($ad['id']);
+			$name = sanitize_text_field($ad['name'] ?? '');
+			$existing_ad = $name !== '' ? $this->repository->ad_by_name($name) : null;
+			if ($existing_ad) $ad['id'] = (int) $existing_ad['id'];
+			$map[$old] = $this->repository->save_ad($ad);
+		}
+		foreach ((array) ($data['zones'] ?? array()) as $zone) {
+			if (!is_array($zone)) continue;
+			unset($zone['id']);
+			$ad_ids = array_filter(array_map('absint', explode(',', (string) ($zone['ad_ids'] ?? ''))));
+			$zone['ad_ids'] = array_values(array_filter(array_map(fn($id) => absint($map[$id] ?? 0), $ad_ids)));
+			$slug = sanitize_title(!empty($zone['slug']) ? $zone['slug'] : ($zone['name'] ?? ''));
+			$existing_zone = $slug !== '' ? $this->repository->zone($slug) : null;
+			if ($existing_zone) $zone['id'] = (int) $existing_zone['id'];
+			$this->repository->save_zone($zone);
+		}
+		if (!empty($data['settings']) && is_array($data['settings'])) $this->import_settings($data['settings']);
 		$this->redirect('tools');
+	}
+
+	private function import_settings(array $incoming): void {
+		$existing = get_option('cotlas_ads_settings', array());
+		$settings = is_array($existing) ? $existing : array();
+		foreach (array('track_impressions', 'track_clicks', 'bot_filter', 'video_upload_enabled', 'adblock_enabled', 'adblock_dismissible', 'advertiser_emails_enabled', 'ga4_adapter_enabled', 'matomo_adapter_enabled', 'asset_alias_enabled') as $key) {
+			if (array_key_exists($key, $incoming)) $settings[$key] = empty($incoming[$key]) ? 0 : 1;
+		}
+		if (isset($incoming['retention_days']) && is_scalar($incoming['retention_days'])) $settings['retention_days'] = min(3650, max(1, absint($incoming['retention_days'])));
+		if (isset($incoming['video_max_mb']) && is_scalar($incoming['video_max_mb'])) $settings['video_max_mb'] = min(50, max(1, absint($incoming['video_max_mb'])));
+		foreach (array('ad_label' => 'Advertisement', 'ga4_impression_event' => 'ad_impression', 'ga4_click_event' => 'ad_click', 'matomo_category' => 'Advertising') as $key => $fallback) {
+			if (isset($incoming[$key]) && is_scalar($incoming[$key])) { $value = sanitize_text_field((string) $incoming[$key]); $settings[$key] = $value !== '' ? $value : $fallback; }
+		}
+		if (isset($incoming['adblock_title']) && is_scalar($incoming['adblock_title'])) $settings['adblock_title'] = sanitize_text_field((string) $incoming['adblock_title']);
+		if (isset($incoming['adblock_message']) && is_scalar($incoming['adblock_message'])) $settings['adblock_message'] = sanitize_textarea_field((string) $incoming['adblock_message']);
+		if (isset($incoming['ads_txt']) && is_scalar($incoming['ads_txt'])) $settings['ads_txt'] = sanitize_textarea_field((string) $incoming['ads_txt']);
+		if (isset($incoming['header_code']) && is_scalar($incoming['header_code'])) $settings['header_code'] = current_user_can('unfiltered_html') ? (string) $incoming['header_code'] : wp_kses_post((string) $incoming['header_code']);
+		if (isset($incoming['advertiser_email_frequency']) && is_scalar($incoming['advertiser_email_frequency']) && in_array($incoming['advertiser_email_frequency'], array('daily', 'weekly', 'monthly'), true)) $settings['advertiser_email_frequency'] = $incoming['advertiser_email_frequency'];
+		if (isset($incoming['asset_probe_alias']) && is_scalar($incoming['asset_probe_alias'])) $settings['asset_probe_alias'] = $this->asset_alias($incoming['asset_probe_alias'], 'site-runtime-check.js');
+		if (isset($incoming['asset_control_alias']) && is_scalar($incoming['asset_control_alias'])) $settings['asset_control_alias'] = $this->asset_alias($incoming['asset_control_alias'], 'site-support-check.js');
+		if (array_key_exists('injection_rules', $incoming)) {
+			$settings['injection_rules'] = $this->sanitize_injection_rules($incoming['injection_rules']);
+			$settings['injections'] = array();
+		}
+		update_option('cotlas_ads_settings', $settings, false);
 	}
 
 	private function guard(string $cap, string $action, string $field = '_wpnonce', string $source = 'post'): void {

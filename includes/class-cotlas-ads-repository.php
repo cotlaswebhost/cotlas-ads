@@ -28,6 +28,11 @@ final class Cotlas_Ads_Repository {
 		return $row ?: null;
 	}
 
+	public function ad_by_name(string $name): ?array {
+		$row = $this->db->get_row($this->db->prepare("SELECT * FROM {$this->ads} WHERE name=%s ORDER BY id ASC LIMIT 1", $name), ARRAY_A);
+		return $row ?: null;
+	}
+
 	public function save_ad(array $data): int {
 		$now = current_time('mysql');
 		$row = array(
@@ -157,6 +162,16 @@ final class Cotlas_Ads_Repository {
 
 	public function delete_zone(int $id): void {
 		$this->db->delete($this->zones, array('id' => $id));
+	}
+
+	public function delete_all_ads(): void {
+		$this->db->query("DELETE FROM {$this->ads}");
+		$this->db->query("DELETE FROM {$this->events}");
+		$this->db->query("UPDATE {$this->zones} SET ad_ids=''");
+	}
+
+	public function delete_all_zones(): void {
+		$this->db->query("DELETE FROM {$this->zones}");
 	}
 
 	public function totals(int $ad_id = 0, int $days = 30): array {

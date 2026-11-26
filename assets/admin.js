@@ -61,6 +61,11 @@ document.querySelectorAll('[data-pick-image]').forEach((button) => {
 });
 
 const injectionRules = document.querySelector('[data-injection-rules]');
+const injectionTemplate = document.querySelector('[data-injection-template]');
+const syncInjectionEmptyState = () => {
+  const empty = document.querySelector('[data-injection-empty]');
+  if (empty) empty.hidden = !!injectionRules?.querySelector('[data-injection-rule]');
+};
 const renumberInjectionRules = () => {
   if (!injectionRules) return;
   [...injectionRules.querySelectorAll('[data-injection-rule]')].forEach((row, index) => {
@@ -79,25 +84,28 @@ const refreshInjectionSummary = (row) => {
   row.querySelector('[data-rule-summary-location]').textContent = injectionLocationLabels[location?.value] || location?.value || '';
   row.querySelector('[data-rule-summary-target]').textContent = ['paragraph', 'feed'].includes(location?.value) ? `#${number?.value || 1}` : '—';
 };
+const newInjectionRow = () => {
+  const existing = injectionRules?.querySelector('[data-injection-rule]:last-child');
+  if (existing) return existing.cloneNode(true);
+  return injectionTemplate?.content?.firstElementChild?.cloneNode(true) || null;
+};
 document.querySelector('[data-add-injection]')?.addEventListener('click', () => {
-  const source = injectionRules?.querySelector('[data-injection-rule]:last-child');
-  if (!source) return;
-  const row = source.cloneNode(true);
+  const row = newInjectionRow();
+  if (!row) return;
   row.querySelectorAll('input').forEach((input) => { input.value = input.type === 'number' ? '2' : ''; });
   row.querySelectorAll('select').forEach((select) => { select.selectedIndex = 0; });
   row.open = true;
-  injectionRules.appendChild(row); renumberInjectionRules(); refreshInjectionSummary(row);
+  injectionRules.appendChild(row); renumberInjectionRules(); refreshInjectionSummary(row); syncInjectionEmptyState();
 });
 injectionRules?.addEventListener('change', (event) => refreshInjectionSummary(event.target.closest('[data-injection-rule]')));
 document.addEventListener('click', (event) => {
   const remove = event.target.closest('[data-remove-injection]');
   if (!remove) return;
   if (!window.confirm('Delete this injection? Save the rules to confirm the change.')) return;
-  const rows = injectionRules?.querySelectorAll('[data-injection-rule]') || [];
-  if (rows.length > 1) remove.closest('[data-injection-rule]').remove();
-  else rows[0].querySelectorAll('input,select').forEach((field) => { if (field.tagName === 'SELECT') field.selectedIndex = 0; else field.value = ''; });
-  renumberInjectionRules();
+  remove.closest('[data-injection-rule]')?.remove();
+  renumberInjectionRules(); syncInjectionEmptyState();
 });
+syncInjectionEmptyState();
 
 document.querySelector('[data-media-slider]')?.addEventListener('click', () => {
 	const frame = wp.media({ title: 'Select carousel images of the same size', button: { text: 'Use selected images' }, multiple: 'add', library: { type: 'image' } });

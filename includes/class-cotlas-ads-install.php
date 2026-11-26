@@ -134,10 +134,34 @@ final class Cotlas_Ads_Install {
 		flush_rewrite_rules();
 	}
 
+	public static function reset(): void {
+		global $wpdb;
+		$wpdb->query("DELETE FROM {$wpdb->prefix}cotlas_ads");
+		$wpdb->query("DELETE FROM {$wpdb->prefix}cotlas_ad_zones");
+		$wpdb->query("DELETE FROM {$wpdb->prefix}cotlas_ad_events");
+		delete_option('cotlas_ads_settings');
+		delete_option('cotlas_ads_roles');
+		delete_option('cotlas_ads_version');
+		foreach (wp_roles()->roles as $role_key => $role_obj) {
+			$role = get_role($role_key);
+			if (!$role) continue;
+			foreach (self::caps() as $cap) $role->remove_cap($cap);
+		}
+		remove_role('cotlas_advertiser');
+		self::install_schema();
+		self::add_roles();
+		if (!wp_next_scheduled('cotlas_ads_daily_cleanup')) wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'cotlas_ads_daily_cleanup');
+		flush_rewrite_rules();
+	}
+
+	private static function caps(): array {
+		return array('cotlas_ads_manage', 'cotlas_ads_report', 'cotlas_ads_settings', 'cotlas_ads_campaigns', 'cotlas_ads_zones', 'cotlas_ads_injection', 'cotlas_ads_analytics', 'cotlas_ads_tools', 'cotlas_ads_roles');
+	}
+
 	private static function add_roles(): void {
 		$admin = get_role('administrator');
 		if ($admin) {
-			foreach (array('cotlas_ads_manage', 'cotlas_ads_report', 'cotlas_ads_settings', 'cotlas_ads_campaigns', 'cotlas_ads_zones', 'cotlas_ads_injection', 'cotlas_ads_analytics', 'cotlas_ads_tools', 'cotlas_ads_roles') as $cap) {
+			foreach (self::caps() as $cap) {
 				$admin->add_cap($cap);
 			}
 		}

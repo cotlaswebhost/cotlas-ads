@@ -1,6 +1,6 @@
 # Cotlas Ads
 
-Version: 0.6.2
+Version: 0.6.3
 
 Lightweight, self-hosted advertising management for Cotlas news portals.
 

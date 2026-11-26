@@ -33,7 +33,9 @@ Cotlas Ads is an original implementation. It does not load or modify either AdRo
 - Shortcode, PHP, dynamic block, and automatic content placement
 - Custom-post-type injection (including `product` when configured)
 - `ads.txt` and trusted header snippets
-- JSON export/import
+- JSON export/import (re-import updates campaigns by name and placements by slug instead of duplicating)
+- Bulk "delete all campaigns" and "delete all placements" actions
+- One-click reset to a fresh-install state from Settings
 - Granular WordPress capabilities and advertiser reporting role
 - Per-campaign advertiser assignment with isolated reporting, protected self-service delivery editing, and CSV export
 - Daily, weekly, or monthly advertiser summaries plus one-time expiry and cap alerts
