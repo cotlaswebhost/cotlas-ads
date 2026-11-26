@@ -188,11 +188,11 @@ final class Cotlas_Ads_Admin {
 		$settings = get_option('cotlas_ads_settings', array());
 		$stored = isset($settings['injection_rules']) && is_array($settings['injection_rules']) ? $settings['injection_rules'] : array();
 		if (isset($stored['zone']) || isset($stored['location'])) $stored = array($stored);
-		$rules = array_values(array_filter($stored, 'is_array'));
-		if (!$rules && !empty($settings['injections']) && is_array($settings['injections'])) {
+		$rules = array_values(array_filter($stored, fn($rule) => is_array($rule) && !empty($rule['zone'])));
+		if (!$stored && !empty($settings['injections']) && is_array($settings['injections'])) {
 			foreach ($settings['injections'] as $legacy) {
-				if (!is_array($legacy)) continue;
-				$rules[] = array('zone' => $legacy['zone'] ?? '', 'location' => $legacy['position'] ?? 'paragraph', 'number' => $legacy['paragraph'] ?? 2, 'post_types' => $legacy['post_types'] ?? array('post'), 'sidebar_id' => '');
+				if (!is_array($legacy) || empty($legacy['zone'])) continue;
+				$rules[] = array('zone' => $legacy['zone'], 'location' => $legacy['position'] ?? 'paragraph', 'number' => $legacy['paragraph'] ?? 2, 'post_types' => $legacy['post_types'] ?? array('post'), 'sidebar_id' => '');
 			}
 		}
 		$zones = array_values(array_filter($this->repository->zones(), fn($zone) => ($zone['placement_type'] ?? 'standard') === 'standard'));

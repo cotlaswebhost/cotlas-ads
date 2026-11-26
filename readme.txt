@@ -3,7 +3,7 @@ Contributors: cotlas
 Tags: advertising, ad manager, banner, newsroom
 Requires at least: 6.2
 Requires PHP: 8.0
-Stable tag: 0.6.3
+Stable tag: 0.6.4
 License: GPLv2 or later
 
 A lightweight, private advertising manager built for in-house news portals.
@@ -58,7 +58,7 @@ Country targeting reads a country code supplied by the reverse proxy (`CF-IPCoun
 
 == Changelog ==
 
-= 0.6.3 =
+= 0.6.4 =
 * New: "Delete all campaigns" action on the Campaigns tab (removes campaigns and their analytics).
 * New: "Delete all placements" action on the Placements tab (also clears injection rules that reference them).
 * New: "Reset plugin to fresh install" action in Settings, restoring default settings, roles, and empty tables.
@@ -67,5 +67,5 @@ Country targeting reads a country code supplied by the reverse proxy (`CF-IPCoun
 * Fix: JSON import now restores the exported settings block instead of silently dropping it.
 * Fix: JSON import skips malformed ads/zones entries instead of erroring.
 * Improvement: JSON import now updates existing campaigns (matched by name) and placements (matched by slug) instead of duplicating them on re-import.
-* Change: the injection tab shows an empty state instead of a permanent disabled rule when none exist.
-* Maintenance: aligned plugin header, version constant, and readme at 0.6.3.
+* Change: the injection tab lists only active rules (those with a placement) and shows an empty state otherwise, so no disabled/default row can appear.
+* Maintenance: aligned plugin header, version constant, and readme at 0.6.4.
